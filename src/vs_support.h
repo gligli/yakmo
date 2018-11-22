@@ -1,6 +1,7 @@
 #pragma once
 
 #ifndef __GNUC__
+  #define _CRT_SECURE_NO_WARNINGS
   #define HAVE_CONFIG_H
 #endif // __GNUC__
 

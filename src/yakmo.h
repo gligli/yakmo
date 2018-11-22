@@ -105,6 +105,15 @@ namespace yakmo
   typedef double fl_t;
 #endif
   
+  static inline double euclidean_baseline_double(const int n, const double* x, const double* y) {
+	double result = 0.f;
+	for (int i = 0; i < n; ++i) {
+	  const double num = x[i] - y[i];
+	  result += num * num;
+	}
+	return result;
+  }
+
   static inline float euclidean_baseline_float(const int n, const float* x, const float* y){
     float result = 0.f;
     for(int i = 0; i < n; ++i){
@@ -138,6 +147,45 @@ namespace yakmo
     return result;
   }  
     
+  static inline double euclidean_intrinsic_double(int n, const double* x, const double* y) {
+	double result = 0;
+	__m128d euclidean0 = _mm_setzero_pd();
+	__m128d euclidean1 = _mm_setzero_pd();
+	
+	for (; n > 3; n -= 4) {
+	  const __m128d a0 = _mm_loadu_pd(x);
+	  x += 2;
+	  const __m128d a1 = _mm_loadu_pd(x);
+	  x += 2;
+
+	  const __m128d b0 = _mm_loadu_pd(y);
+	  y += 2;
+	  const __m128d b1 = _mm_loadu_pd(y);
+	  y += 2;
+
+	  const __m128d a0_minus_b0 = _mm_sub_pd(a0, b0);
+	  const __m128d a1_minus_b1 = _mm_sub_pd(a1, b1);
+
+	  const __m128d a0_minus_b0_sq = _mm_mul_pd(a0_minus_b0, a0_minus_b0);
+	  const __m128d a1_minus_b1_sq = _mm_mul_pd(a1_minus_b1, a1_minus_b1);
+
+	  euclidean0 = _mm_add_pd(euclidean0, a0_minus_b0_sq);
+	  euclidean1 = _mm_add_pd(euclidean1, a1_minus_b1_sq);
+	}
+
+	__m128d euclidean = _mm_add_pd(euclidean0, euclidean1);
+
+	__m128d sum2 = _mm_hadd_pd(euclidean, euclidean);
+	sum2 = _mm_hadd_pd(sum2, sum2);
+
+	_mm_store_sd(&result, sum2);
+
+	if (n)
+	  result += euclidean_baseline_double(n, x, y);	// remaining 1-3 entries
+
+	return result;
+  }
+
   static inline bool getLine (FILE*& fp, char*& line, int64_t& read) {
 #ifdef __APPLE__
     if ((line = fgetln (fp, &read)) == NULL) return false;
@@ -338,7 +386,11 @@ namespace yakmo
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist, const bool skip = true) const {
         // return distance from this centroid to the given centroid
-        return euclidean_intrinsic_float(_nf, _dv, c._dv);
+#ifdef USE_FLOAT
+		return euclidean_intrinsic_float(_nf, _dv, c._dv);
+#else
+		return euclidean_intrinsic_double(_nf, _dv, c._dv);
+#endif
       }
       void set_closest (const std::vector <centroid_t>& centroid, const dist_t dist) {
         uint i = (this == &centroid[0]) ? 1 : 0;
