@@ -2,7 +2,7 @@
 AM_CXXFLAGS = -Wall
 bin_PROGRAMS = yakmo
 
-yakmo_SOURCES = yakmo.h yakmo.cc
+yakmo_SOURCES = yakmo.h yakmo.cc getline.c
 EXTRA_yakmo_SOURCES = timer.cc timer.h
 
 yakmo_DEPENDENCIES = @YAKMO_OBJ@

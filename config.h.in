@@ -79,7 +79,7 @@
 #undef STDC_HEADERS
 
 /* float as floating-point numbers */
-#undef USE_FLOAT
+#define USE_FLOAT 1
 
 /* hash support */
 #undef USE_HASH

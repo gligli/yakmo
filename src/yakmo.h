@@ -1,8 +1,16 @@
 // yakmo -- yet another k-means via orthogonalization
 //  $Id: yakmo.h 1866 2015-01-21 10:25:43Z ynaga $
 // Copyright (c) 2012-2015 Naoki Yoshinaga <ynaga@tkl.iis.u-tokyo.ac.jp>
-#include <getopt.h>
-#include <err.h>
+
+#ifdef __GNUC__
+ #include <getopt.h>
+#else
+  #include "getopt.h"
+#endif
+
+#include "pmmintrin.h"
+#include "getline.h"
+#include "vs_support.h"
 #include <stdint.h>
 #include <ctime>
 #include <cstdio>
@@ -14,7 +22,7 @@
 #include <algorithm>
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include "../config.h"
 #endif
 
 #ifdef USE_MT19937
@@ -85,22 +93,56 @@ static struct option yakmo_long_options[] = {
   {NULL, 0, NULL, 0}
 };
 
-extern char* optarg;
-extern int   optind;
+//extern char* optarg;
+//extern int   optind;
 
 namespace yakmo
 {
-  typedef unsigned int  uint;
+  typedef unsigned int uint;
 #ifdef USE_FLOAT
   typedef float  fl_t;
 #else
   typedef double fl_t;
 #endif
-  static inline bool getLine (FILE*& fp, char*& line, size_t& read) {
+  
+  static inline float euclidean_baseline_float(const int n, const float* x, const float* y){
+    float result = 0.f;
+    for(int i = 0; i < n; ++i){
+      const float num = x[i] - y[i];
+      result += num * num;
+    }
+    return result;
+  }
+
+  static inline float euclidean_intrinsic_float(int n, const float* x, const float* y){
+    float result=0;
+    __m128 euclidean = _mm_setzero_ps();
+    for (; n>3; n-=4) {
+      const __m128 a = _mm_loadu_ps(x);
+      const __m128 b = _mm_loadu_ps(y);
+      const __m128 a_minus_b = _mm_sub_ps(a,b);
+      const __m128 a_minus_b_sq = _mm_mul_ps(a_minus_b, a_minus_b);
+      euclidean = _mm_add_ps(euclidean, a_minus_b_sq);
+      x+=4;
+      y+=4;
+    }
+    
+    __m128 sum2 = _mm_hadd_ps(euclidean, euclidean);
+    sum2 = _mm_hadd_ps(sum2, sum2);
+
+    _mm_store_ss(&result,sum2);
+    
+    if (n)
+      result += euclidean_baseline_float(n, x, y);	// remaining 1-3 entries
+    
+    return result;
+  }  
+    
+  static inline bool getLine (FILE*& fp, char*& line, int64_t& read) {
 #ifdef __APPLE__
     if ((line = fgetln (fp, &read)) == NULL) return false;
 #else
-    static ssize_t read_ = 0; static size_t size = 0; // static helps inlining
+    static int64_t read_ = 0; static int64_t size = 0; // static helps inlining
     if ((read_ = getline (&line, &size, fp)) == -1) return false;
     read = read_;
 #endif
@@ -220,12 +262,12 @@ namespace yakmo
       fl_t calc_dist (const centroid_t& c, const dist_t dist) const {
         // return distance from this point to the given centroid
         fl_t ret = 0;
-        switch (dist) {
-          case EUCLIDEAN:
+        //switch (dist) {
+        //  case EUCLIDEAN:
             ret += _norm + c.norm ();
             for (const node_t* n = begin (); n != end (); ++n)
               ret -= 2 * n->val * c[n->idx];
-        }
+        //}
         return  ret;
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
@@ -248,8 +290,9 @@ namespace yakmo
         const fl_t norm_ip = calc_ip (c) / c.norm ();
         up_d = lo_d = id = 0; _norm = 0; // reset
         for (uint i = 0; i < _size; ++i) {
-          _body[i].val -= c[_body[i].idx] * norm_ip;
-          _norm += _body[i].val * _body[i].val;
+          fl_t v = c[_body[i].idx] * norm_ip;
+          _norm += v * v;
+          _body[i].val = v;
         }
       }
       const node_t* begin () const { return _body; }
@@ -295,18 +338,7 @@ namespace yakmo
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist, const bool skip = true) const {
         // return distance from this centroid to the given centroid
-        fl_t ret = 0;
-        switch (dist) {
-          case EUCLIDEAN:
-            if (skip) {
-              const fl_t cand = next_d * next_d;
-              for (uint d = 0; d <= _nf; ++d)
-                if ((ret += (_dv[d] - c[d]) * (_dv[d] - c[d])) > cand) break;
-            } else
-              for (uint d = 0; d <= _nf; ++d)
-                ret += (_dv[d] - c[d]) * (_dv[d] - c[d]);
-        }
-        return ret;
+        return euclidean_intrinsic_float(_nf, _dv, c._dv);
       }
       void set_closest (const std::vector <centroid_t>& centroid, const dist_t dist) {
         uint i = (this == &centroid[0]) ? 1 : 0;
@@ -320,15 +352,15 @@ namespace yakmo
       }
       void reset (const dist_t dist) { // move center
         delta = _norm = 0;
-        switch (dist) {
-          case EUCLIDEAN:
+        //switch (dist) {
+        //  case EUCLIDEAN:
             for (uint i = 0; i <= _nf; ++i) {
               const fl_t v = _sum[i] / static_cast <fl_t> (_nelm);
               delta += (v - _dv[i]) * (v - _dv[i]);
               _norm += v * v;
               _dv[i] = v;
             }
-        }
+        //}
         delta = std::sqrt (delta);
       }
       void compress () {
@@ -638,7 +670,7 @@ namespace yakmo
       if (! fp)
         errx (1, "no such file: %s", train);
       char*  line = 0;
-      size_t read = 0;
+      int64_t read = 0;
       while (getLine (fp, line, read)) {
         char* ex (line), *ex_end (line + read - 1);
         while (ex != ex_end && ! isspace (*ex)) ++ex;
@@ -718,7 +750,7 @@ namespace yakmo
       if (! fp)
         errx (1, "no such file: %s", model);
       char*  line = 0;
-      size_t read = 0;
+      int64_t read = 0;
       if (! getLine (fp, line, read)) errx (1, "premature model: %s", model);
       _opt.m  = static_cast <uint> (std::strtol (line, NULL, 10));
       if (! getLine (fp, line, read)) errx (1, "premature model: %s", model);
@@ -752,7 +784,7 @@ namespace yakmo
       if (! fp)
         errx (1, "no such file: %s", test);
       char*  line = 0;
-      size_t read = 0;
+      int64_t read = 0;
       while (getLine (fp, line, read)) {
         char* ex (line), *ex_end (line + read - 1);
         while (ex != ex_end && ! isspace (*ex)) ++ex;

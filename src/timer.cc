@@ -18,7 +18,7 @@ namespace ny {
         gettimeofday (&e_t, NULL);
       end = rdtsc ();
       interval = static_cast <uint64_t> ((e_t.tv_sec - s_t.tv_sec) * 1000000 + e_t.tv_usec - s_t.tv_usec);
-      clock = (end - start) / interval;
+      clock = (long double) (end - start) / interval;
     }
     return clock;
   }

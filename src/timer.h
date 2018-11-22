@@ -4,8 +4,9 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#include <sys/time.h>
-#include <sys/resource.h>
+//#include <sys/time.h>
+//#include <sys/resource.h>
+#include "vs_support.h"
 #include <stdint.h>
 #include <cstdio>
 #include <cstdlib>
@@ -56,6 +57,8 @@ namespace ny {
       uint64_t itc;
       __asm__ __volatile__ ("mov %0 = ar.itc" : "=r" (itc));
       return (itc);
+#else
+	  return 0;
 #endif
     }
     static long double clock ();
