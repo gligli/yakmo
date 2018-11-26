@@ -45,18 +45,18 @@ char *malloc (), *realloc ();
    should check feof(), if not then errno has been set to indicate the
    error.  */
 
-int
+int64_t
 getstr (lineptr, n, stream, terminator, offset, limit)
      char **lineptr;
      int64_t *n;
      FILE *stream;
      int terminator;
-     int offset;
+     int64_t offset;
      int limit;
 {
-  int nchars_avail;		/* Allocated but unused chars in *LINEPTR.  */
+  int64_t nchars_avail;		/* Allocated but unused chars in *LINEPTR.  */
   char *read_pos;		/* Where we're reading into *LINEPTR. */
-  int ret;
+  int64_t ret;
 
   if (!lineptr || !n || !stream)
     {
@@ -154,7 +154,7 @@ getstr (lineptr, n, stream, terminator, offset, limit)
   return ret;
 }
 
-int
+int64_t
 getline (lineptr, n, stream)
      char **lineptr;
      int64_t *n;
@@ -163,7 +163,7 @@ getline (lineptr, n, stream)
   return getstr (lineptr, n, stream, '\n', 0, GETLINE_NO_LIMIT);
 }
 
-int
+int64_t
 getline_safe (lineptr, n, stream, limit)
      char **lineptr;
      int64_t *n;

@@ -12,14 +12,14 @@ extern "C" {
 
 #define GETLINE_NO_LIMIT -1
 
-int
+int64_t
   getline __PROTO ((char **_lineptr, int64_t *_n, FILE *_stream));
-int
+int64_t
   getline_safe __PROTO ((char **_lineptr, int64_t *_n, FILE *_stream,
                          int limit));
-int
+int64_t
   getstr __PROTO ((char **_lineptr, int64_t *_n, FILE *_stream,
-		   int _terminator, int _offset, int limit));
+		   int _terminator, int64_t _offset, int limit));
 
 #ifdef __cplusplus
 }
