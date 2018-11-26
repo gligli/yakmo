@@ -3,9 +3,9 @@
 // Copyright (c) 2012-2015 Naoki Yoshinaga <ynaga@tkl.iis.u-tokyo.ac.jp>
 
 #ifdef __GNUC__
- #include <getopt.h>
+#include <getopt.h>
 #else
-  #include "getopt.h"
+#include "getopt.h"
 #endif
 
 #include "pmmintrin.h"
@@ -577,9 +577,9 @@ namespace yakmo
             case KMEANSPP_FIXED:
               c = static_cast <uint>
                   (i == 0 ?
-                   std::floor (rng () * _point.size ()) :
+                   ((_opt.init == KMEANSPP) ? std::floor (rng () * _point.size ()) : 0) :
                    std::distance (r.begin (),
-                                  std::lower_bound (r.begin (), r.end (), (_opt.init == KMEANSPP) ? obj * rng() : 0)));
+                                  std::lower_bound (r.begin (), r.end (), obj * rng())));
               break;
           }
           // skip chosen centroids; fix a bug reported by Gleb
