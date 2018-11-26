@@ -64,7 +64,8 @@ test      test  file        set '-' to output clustering results of train\n\
                             * 0 - Euclidean\n\
   -c, --init-centroid=TYPE  select method of choosing initial centroids\n\
                               0 - random\n\
-                            * 1 - k-means++\n\
+                            * 1 - k-means++ (starting from a random line)\n\
+                              2 - k-means++ (starting from line #0)\n\
   -k, --num-cluster=NUM     k in k-means (3)\n\
   -m, --num-result=NUM      number of alternative results (1)\n\
   -i, --iteration=NUM       maximum number of iterations per clustering (100)\n\
@@ -208,7 +209,7 @@ namespace yakmo
     return static_cast <T> (ret);
   }
   enum dist_t { EUCLIDEAN };
-  enum init_t { RANDOM, KMEANSPP };
+  enum init_t { RANDOM, KMEANSPP, KMEANSPP_FIXED };
   struct option { // option handler
     enum mode_t { BOTH, TRAIN, TEST };
     const char* com, *train, *model, *test;
@@ -252,7 +253,7 @@ namespace yakmo
       }
       if (dist != EUCLIDEAN)
         errx (1, "only euclidean distance is supported.");
-      if (init != RANDOM && init != KMEANSPP)
+      if (init != RANDOM && init != KMEANSPP && init != KMEANSPP_FIXED)
         errx (1, "unsupported centroid initialization.");
       if (argc < optind + 3) {
         printCredit ();
@@ -564,7 +565,7 @@ namespace yakmo
 #endif
       std::vector <fl_t> r;
       fl_t obj = 0;
-      if (_opt.init == KMEANSPP) r.resize (_point.size (), 0);
+      if (_opt.init == KMEANSPP || _opt.init == KMEANSPP_FIXED) r.resize (_point.size (), 0);
       for (uint i = 0; i < _opt.k; ++i) {
         uint c = 0;
         do {
@@ -573,11 +574,12 @@ namespace yakmo
               c = static_cast <uint> (std::floor (rng () * _point.size ()));
               break;
             case KMEANSPP:
+            case KMEANSPP_FIXED:
               c = static_cast <uint>
                   (i == 0 ?
                    std::floor (rng () * _point.size ()) :
                    std::distance (r.begin (),
-                                  std::lower_bound (r.begin (), r.end (), obj * rng ())));
+                                  std::lower_bound (r.begin (), r.end (), (_opt.init == KMEANSPP) ? obj * rng() : 0)));
               break;
           }
           // skip chosen centroids; fix a bug reported by Gleb
@@ -595,7 +597,7 @@ namespace yakmo
           else if (i == 1 || di < p.lo_d) // second closest
             { p.lo_d = di; }
           if (i < _opt.k - 1) {
-            if (_opt.init == KMEANSPP) {
+            if (_opt.init == KMEANSPP || _opt.init == KMEANSPP_FIXED) {
               obj += p.up_d;
               r[j] = obj;
             }
