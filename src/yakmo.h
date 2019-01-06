@@ -105,7 +105,7 @@ namespace yakmo
 #else
   typedef double fl_t;
 #endif
-  
+
   static inline double euclidean_baseline_double(const int n, const double* x, const double* y) {
 	double result = 0.f;
 	for (int i = 0; i < n; ++i) {
@@ -566,7 +566,8 @@ namespace yakmo
       std::vector <fl_t> r;
       fl_t obj = 0;
       if (_opt.init == KMEANSPP || _opt.init == KMEANSPP_FIXED) r.resize (_point.size (), 0);
-      for (uint i = 0; i < _opt.k; ++i) {
+	  
+	  for (uint i = 0; i < _opt.k; ++i) {
         uint c = 0;
         do {
           switch (_opt.init) {
@@ -587,21 +588,25 @@ namespace yakmo
             c = c < _point.size () - 1 ? c + 1 : 0;
         } while (chosen.find (c) != chosen.end ());
         push_centroid (_point[c]);
-        obj = 0;
-        chosen.insert (c);
-        for (uint j = 0; j < _point.size (); ++j) {
+		chosen.insert(c);
+
+		obj = 0;
+		if (i < _opt.k - 1 && (_opt.init == KMEANSPP || _opt.init == KMEANSPP_FIXED))
+			for (int j = 0; j < _point.size(); ++j) {
+				point_t& p = _point[j];
+				obj += p.up_d;
+				r[j] = obj;
+			}
+
+		#pragma omp parallel for schedule(static)
+		for (int j = 0; j < _point.size (); ++j) {
           point_t& p = _point[j];
           const fl_t di = p.calc_dist (_centroid[i], _opt.dist);
           if (i == 0 || di < p.up_d)      // closest
             { p.lo_d = p.up_d; p.up_d = di; p.id = i; }
           else if (i == 1 || di < p.lo_d) // second closest
             { p.lo_d = di; }
-          if (i < _opt.k - 1) {
-            if (_opt.init == KMEANSPP || _opt.init == KMEANSPP_FIXED) {
-              obj += p.up_d;
-              r[j] = obj;
-            }
-          } else { // i == _k - 1
+          if (i == _opt.k - 1){
             p.up_d = std::sqrt (p.up_d);
             p.lo_d = std::sqrt (p.lo_d);
             _centroid[p.id].push (p);
@@ -651,7 +656,8 @@ namespace yakmo
         for (uint j = 0; j < _opt.k; ++j)
           _centroid[j].set_closest (_centroid, _opt.dist);
         moved = 0;
-        for (uint j = 0; j < _point.size (); ++j) { // for all points
+		#pragma omp parallel for schedule(static)
+		for (int j = 0; j < _point.size (); ++j) { // for all points
           point_t&   p  = _point[j];
           const uint id0 = p.id;
           const fl_t m   = std::max (_centroid[id0].next_d / 2, p.lo_d);
