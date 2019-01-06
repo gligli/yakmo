@@ -82,7 +82,7 @@ static const  char*  yakmo_short_options = "t:c:k:m:i:rnO:v:h";
 
 static struct option yakmo_long_options[] = {
   {"dist-type",        required_argument, NULL, 't'},
-  {"kmeans++",         required_argument, NULL, 'c'},
+  {"init-centroid",    required_argument, NULL, 'c'},
   {"num-cluster",      required_argument, NULL, 'k'},
   {"num-result",       required_argument, NULL, 'm'},
   {"iteration",        required_argument, NULL, 'i'},
@@ -666,7 +666,7 @@ namespace yakmo
             if (p.up_d > m) {
               p.set_closest (_centroid, _opt.dist);
               if (p.id != id0) {
-                ++moved;
+                //++moved;
                 _centroid[id0].pop (p);
                 _centroid[p.id].push (p);
               }
@@ -674,7 +674,7 @@ namespace yakmo
           }
         }
       }
-      std::fprintf (stderr, "%s", moved ? "break" : "done");
+      //std::fprintf (stderr, "%s", moved ? "break" : "done");
       if (_opt.verbosity == 1)
         std::fprintf (stderr, "; obj = %g.\n", getObj ());
       else
