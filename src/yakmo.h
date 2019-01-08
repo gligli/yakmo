@@ -811,11 +811,11 @@ namespace yakmo
         errx (1, "no such file: %s", model);
       char*  line = 0;
       int64_t read = 0;
-      if (! getLine (fp, line, read)) errx (1, "premature model: %s", model);
+      if (! getLine (fp, line, read)) errx (1, "premature model (0): %s", model);
       _opt.m  = static_cast <uint> (std::strtol (line, NULL, 10));
-      if (! getLine (fp, line, read)) errx (1, "premature model: %s", model);
+      if (! getLine (fp, line, read)) errx (1, "premature model (1): %s", model);
       _opt.k  = static_cast <uint> (std::strtol (line, NULL, 10));
-      if (! getLine (fp, line, read)) errx (1, "premature model: %s", model);
+      if (! getLine (fp, line, read)) errx (1, "premature model (2): %s", model);
       const uint nf = static_cast <uint> (std::strtol (line, NULL, 10));
       std::vector <kmeans::node_t> body;
       for (uint i = 0; i < _opt.m; ++i) {
@@ -823,7 +823,7 @@ namespace yakmo
         km->nf () = nf;
         for (uint j = 0; j < _opt.k; ++j) {
           if (! getLine (fp, line, read))
-            errx (1, "premature model: %s", model);
+            errx (1, "premature model (+): %s", model);
           char* ex (line), *ex_end (line + read - 1);
           while (ex != ex_end && ! isspace (*ex)) ++ex;
           while (isspace (*ex)) ++ex;
