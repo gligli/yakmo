@@ -128,7 +128,8 @@ namespace yakmo
     float result=0;
     __m128 euclidean = _mm_setzero_ps();
     for (; n>3; n-=4) {
-      const __m128 a = _mm_loadu_ps(x);
+      // TODO: 4*4 registers at a time
+			const __m128 a = _mm_loadu_ps(x);
       const __m128 b = _mm_loadu_ps(y);
       const __m128 a_minus_b = _mm_sub_ps(a,b);
       const __m128 a_minus_b_sq = _mm_mul_ps(a_minus_b, a_minus_b);
@@ -149,42 +150,54 @@ namespace yakmo
   }  
     
   static inline double euclidean_intrinsic_double(int n, const double* x, const double* y) {
-	double result = 0;
-	__m128d euclidean0 = _mm_setzero_pd();
-	__m128d euclidean1 = _mm_setzero_pd();
-	
-	for (; n > 3; n -= 4) {
-	  const __m128d a0 = _mm_loadu_pd(x);
-	  x += 2;
-	  const __m128d a1 = _mm_loadu_pd(x);
-	  x += 2;
+		double result = 0;
+		__m128d euclidean0 = _mm_setzero_pd();
+		__m128d euclidean1 = _mm_setzero_pd();
+		__m128d euclidean2 = _mm_setzero_pd();
+		__m128d euclidean3 = _mm_setzero_pd();
 
-	  const __m128d b0 = _mm_loadu_pd(y);
-	  y += 2;
-	  const __m128d b1 = _mm_loadu_pd(y);
-	  y += 2;
+		for (; n > 7; n -= 8) {
+			const __m128d a0 = _mm_loadu_pd(x);
+			const __m128d a1 = _mm_loadu_pd(x + 2);
+			const __m128d a2 = _mm_loadu_pd(x + 4);
+			const __m128d a3 = _mm_loadu_pd(x + 6);
+			const __m128d b0 = _mm_loadu_pd(y);
+			const __m128d b1 = _mm_loadu_pd(y + 2);
+			const __m128d b2 = _mm_loadu_pd(y + 4);
+			const __m128d b3 = _mm_loadu_pd(y + 6);
 
-	  const __m128d a0_minus_b0 = _mm_sub_pd(a0, b0);
-	  const __m128d a1_minus_b1 = _mm_sub_pd(a1, b1);
+			const __m128d a0_minus_b0 = _mm_sub_pd(a0, b0);
+			const __m128d a1_minus_b1 = _mm_sub_pd(a1, b1);
+			const __m128d a2_minus_b2 = _mm_sub_pd(a2, b2);
+			const __m128d a3_minus_b3 = _mm_sub_pd(a3, b3);
 
-	  const __m128d a0_minus_b0_sq = _mm_mul_pd(a0_minus_b0, a0_minus_b0);
-	  const __m128d a1_minus_b1_sq = _mm_mul_pd(a1_minus_b1, a1_minus_b1);
+			const __m128d a0_minus_b0_sq = _mm_mul_pd(a0_minus_b0, a0_minus_b0);
+			const __m128d a1_minus_b1_sq = _mm_mul_pd(a1_minus_b1, a1_minus_b1);
+			const __m128d a2_minus_b2_sq = _mm_mul_pd(a2_minus_b2, a2_minus_b2);
+			const __m128d a3_minus_b3_sq = _mm_mul_pd(a3_minus_b3, a3_minus_b3);
 
-	  euclidean0 = _mm_add_pd(euclidean0, a0_minus_b0_sq);
-	  euclidean1 = _mm_add_pd(euclidean1, a1_minus_b1_sq);
-	}
+			euclidean0 = _mm_add_pd(euclidean0, a0_minus_b0_sq);
+			euclidean1 = _mm_add_pd(euclidean1, a1_minus_b1_sq);
+			euclidean2 = _mm_add_pd(euclidean2, a2_minus_b2_sq);
+			euclidean3 = _mm_add_pd(euclidean3, a3_minus_b3_sq);
 
-	__m128d euclidean = _mm_add_pd(euclidean0, euclidean1);
+			x += 8;
+			y += 8;
+		}
 
-	__m128d sum2 = _mm_hadd_pd(euclidean, euclidean);
-	sum2 = _mm_hadd_pd(sum2, sum2);
+		const __m128d euclideanA = _mm_add_pd(euclidean0, euclidean1);
+		const __m128d euclideanB = _mm_add_pd(euclidean2, euclidean3);
 
-	_mm_store_sd(&result, sum2);
+		const __m128d euclidean = _mm_add_pd(euclideanA, euclideanB);
 
-	if (n)
-	  result += euclidean_baseline_double(n, x, y);	// remaining 1-3 entries
+		const __m128d sum = _mm_hadd_pd(euclidean, euclidean);
 
-	return result;
+		_mm_store_sd(&result, sum);
+
+		if (n)
+			result += euclidean_baseline_double(n, x, y);	// remaining 1-3 entries
+
+		return result;
   }
 
   static inline bool getLine (FILE*& fp, char*& line, int64_t& read) {
