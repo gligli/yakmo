@@ -125,28 +125,37 @@ namespace yakmo
 	}
 
 	static const float euclidean_intrinsic_float(int n, const float* x, const float* y) {
-    __m128 euclidean = _mm_setzero_ps();
-    for (; n>3; n-=4) {
-      // TODO: 4*4 registers at a time
-			const __m128 a = _mm_loadu_ps(x);
-      const __m128 b = _mm_loadu_ps(y);
+    __m128 euclidean0 = _mm_setzero_ps();
+		__m128 euclidean1 = _mm_setzero_ps();
+
+		for (; n > 7; n -= 8) {
+			const __m128 a0 = _mm_loadu_ps(x);
 			x += 4;
+			const __m128 a1 = _mm_loadu_ps(x);
+			x += 4;
+			const __m128 b0 = _mm_loadu_ps(y);
 			y += 4;
-			
-			const __m128 a_minus_b = _mm_sub_ps(a,b);
-      
-			const __m128 a_minus_b_sq = _mm_mul_ps(a_minus_b, a_minus_b);
-      
-			euclidean = _mm_add_ps(euclidean, a_minus_b_sq);
-    }
+			const __m128 b1 = _mm_loadu_ps(y);
+			y += 4;
+
+			const __m128 a0_minus_b0 = _mm_sub_ps(a0, b0);
+			const __m128 a1_minus_b1 = _mm_sub_ps(a1, b1);
+
+			const __m128 a0_minus_b0_sq = _mm_mul_ps(a0_minus_b0, a0_minus_b0);
+			const __m128 a1_minus_b1_sq = _mm_mul_ps(a1_minus_b1, a1_minus_b1);
+
+			euclidean0 = _mm_add_ps(euclidean0, a0_minus_b0_sq);
+			euclidean1 = _mm_add_ps(euclidean1, a1_minus_b1_sq);
+		}
     
-    __m128 sum = _mm_hadd_ps(euclidean, euclidean);
-    sum = _mm_hadd_ps(sum, sum);
+		const __m128 euclidean = _mm_add_ps(euclidean, euclidean);
+		
+		const __m128 sum = _mm_hadd_ps(euclidean, euclidean);
 
 		float result = sum.m128_f32[0];
     
     if (n)
-      result += euclidean_baseline_float(n, x, y);	// remaining 1-3 entries
+      result += euclidean_baseline_float(n, x, y);	// remaining 1-7 entries
     
     return result;
   }  
