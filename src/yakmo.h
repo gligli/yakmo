@@ -67,7 +67,7 @@ test      test  file        set '-' to output clustering results of train\n\
                             * 1 - k-means++\n\
   -k, --num-cluster=NUM     k in k-means (3)\n\
   -m, --num-result=NUM      number of alternative results (1)\n\
-  -i, --iteration=NUM       maximum number of iterations per clustering (100)\n\
+  -i, --iteration=NUM       maximum number of iterations per clustering (0)\n\
   -r, --init-random-seed    initialize random seed in initializing centroids\n\
   -n, --normalize           normalize L2-norm of data points\n\
   -O, --output=TYPE         select output type of testing\n\
@@ -230,7 +230,7 @@ namespace yakmo
     uint16_t output;
     uint     verbosity;
     mode_t   mode;
-    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (100), random (false), normalize (false), output (0), verbosity (1), mode (BOTH)
+    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (0), random (false), normalize (false), output (0), verbosity (1), mode (BOTH)
     { set (argc, argv); }
     void set (int argc, char** argv) { // getOpt
       if (argc == 0) return;
@@ -640,7 +640,8 @@ namespace yakmo
     void run () {
       init ();
       uint moved = static_cast <uint> (_point.size ());
-      for (uint i = 0; i <= _opt.iter; ++i) { // find neighbour center
+      uint iter_lim = _opt.iter <= 0 ? UINT_MAX : _opt.iter;
+      for (uint i = 0; i <= iter_lim; ++i) { // find neighbour center
         if (moved) {
           for (uint j = 0; j < _opt.k; ++j) // move center
             _centroid[j].reset (_opt.dist);
