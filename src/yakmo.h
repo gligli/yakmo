@@ -316,14 +316,11 @@ namespace yakmo
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist) const {
         // return distance from this point to the given centroid
-        fl_t ret = 0;
-        //switch (dist) {
-        //  case EUCLIDEAN:
-            ret += _norm + c.norm ();
-            for (const node_t* n = begin (); n != end (); ++n)
-              ret -= 2 * n->val * c[n->idx];
-        //}
-        return  ret;
+        fl_t ret = (_norm + c.norm()) * 0.5f;
+        fl_t * cp = c._dv;
+        for (const node_t* n = begin(); n != end(); ++n)
+          ret -= n->val * *++cp;
+        return  2.0f * ret;
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
         uint i   = id == 0 ? 1 : 0; // second closest (cand)
@@ -463,6 +460,7 @@ namespace yakmo
       uint     _nelm;  // # elements belonging to the cluster
       uint     _nf;    // # features
       uint     _size;  // # nozero features
+      friend point_t;
     };
     kmeans (const option &opt) : _opt (opt), _point (), _centroid (), _body (), _nf (0) { _centroid.reserve (_opt.k); }
     ~kmeans () {

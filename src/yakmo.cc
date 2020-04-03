@@ -6,6 +6,7 @@
 #include "timer.h"
 
 int main (int argc, char** argv) {
+  setvbuf(stdin, (char *) malloc(65536), _IOFBF, 65536);
   setvbuf(stdout, NULL, _IONBF, 0);
   setvbuf(stderr, NULL, _IONBF, 0);
 
