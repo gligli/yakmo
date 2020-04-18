@@ -2,6 +2,8 @@
 //  $Id: yakmo.h 1866 2015-01-21 10:25:43Z ynaga $
 // Copyright (c) 2012-2015 Naoki Yoshinaga <ynaga@tkl.iis.u-tokyo.ac.jp>
 
+#include "vs_support.h"
+
 #ifdef __GNUC__
 #include <getopt.h>
 #else
@@ -10,7 +12,6 @@
 
 #include "pmmintrin.h"
 #include "getline.h"
-#include "vs_support.h"
 #include <stdint.h>
 #include <ctime>
 #include <cstdio>
