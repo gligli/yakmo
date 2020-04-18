@@ -31,7 +31,7 @@ char *malloc (), *realloc ();
 #endif
 
 /* Always add at least this many bytes when extending the buffer.  */
-#define MIN_CHUNK 256
+#define MIN_CHUNK 65536
 
 /* Read up to (and including) a TERMINATOR from STREAM into *LINEPTR
    + OFFSET (and null-terminate it).  If LIMIT is non-negative, then

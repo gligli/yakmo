@@ -728,6 +728,8 @@ namespace yakmo
       FILE* fp = std::fopen (train, "r");
       if (! fp)
         errx (1, "no such file: %s", train);
+      char buf[65536];
+      setvbuf(fp, buf, _IOFBF, sizeof (buf));
       char*  line = 0;
       int64_t read = 0;
       while (getLine (fp, line, read)) {
@@ -808,6 +810,8 @@ namespace yakmo
       FILE* fp = std::fopen (model, "r");
       if (! fp)
         errx (1, "no such file: %s", model);
+      char buf[65536];
+      setvbuf(fp, buf, _IOFBF, sizeof(buf));
       char*  line = 0;
       int64_t read = 0;
       if (! getLine (fp, line, read)) errx (1, "premature model (0): %s", model);
@@ -842,6 +846,8 @@ namespace yakmo
       FILE* fp = std::fopen (test, "r");
       if (! fp)
         errx (1, "no such file: %s", test);
+      char buf[65536];
+      setvbuf(fp, buf, _IOFBF, sizeof(buf));
       char*  line = 0;
       int64_t read = 0;
       while (getLine (fp, line, read)) {
