@@ -70,6 +70,7 @@ test      test  file        set '-' to output clustering results of train\n\
   -m, --num-result=NUM      number of alternative results (1)\n\
   -i, --iteration=NUM       maximum number of iterations per clustering (0)\n\
   -r, --init-random-seed    initialize random seed in initializing centroids\n\
+  -b, --binary              treat input file as binary\n\
   -n, --normalize           normalize L2-norm of data points\n\
   -O, --output=TYPE         select output type of testing\n\
                             * 0 - no output\n\
@@ -78,7 +79,7 @@ test      test  file        set '-' to output clustering results of train\n\
   -v, --verbose             verbosity level (1)\n\
   -h, --help                show this help and exit\n"
 
-static const  char*  yakmo_short_options = "t:c:k:m:i:rnO:v:h";
+static const  char*  yakmo_short_options = "t:c:k:m:i:brnO:v:h";
 
 static struct option yakmo_long_options[] = {
   {"dist-type",        required_argument, NULL, 't'},
@@ -86,6 +87,7 @@ static struct option yakmo_long_options[] = {
   {"num-cluster",      required_argument, NULL, 'k'},
   {"num-result",       required_argument, NULL, 'm'},
   {"iteration",        required_argument, NULL, 'i'},
+  {"binary",           no_argument,       NULL, 'b'},
   {"normalize",        no_argument,       NULL, 'n'},
   {"init-random-seed", no_argument,       NULL, 'r'},
   {"output",           required_argument, NULL, 'O'},
@@ -231,7 +233,8 @@ namespace yakmo
     uint16_t output;
     uint     verbosity;
     mode_t   mode;
-    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (0), random (false), normalize (false), output (0), verbosity (1), mode (BOTH)
+    bool     binary;
+    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (0), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary(false)
     { set (argc, argv); }
     void set (int argc, char** argv) { // getOpt
       if (argc == 0) return;
@@ -251,6 +254,7 @@ namespace yakmo
           case 'n': normalize = true; break;
           case 'O': output    = strton <uint16_t> (optarg, &err); break;
           case 'v': verbosity = strton <uint> (optarg, &err); break;
+          case 'b': binary    = true; break;
             // misc
           case 'h': printCredit (); printHelp (); std::exit (0);
           default:  printCredit (); std::exit (0);
@@ -317,11 +321,14 @@ namespace yakmo
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist) const {
         // return distance from this point to the given centroid
-        fl_t ret = (_norm + c.norm()) * 0.5f;
-        fl_t * cp = c._dv;
-        for (const node_t* n = begin(); n != end(); ++n)
-          ret -= n->val * *++cp;
-        return  2.0f * ret;
+        fl_t ret = 0;
+        //switch (dist) {
+        //  case EUCLIDEAN:
+            ret += _norm + c.norm ();
+            for (const node_t* n = begin (); n != end (); ++n)
+              ret -= 2 * n->val * c[n->idx];
+        //}
+        return  ret;
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
         uint i   = id == 0 ? 1 : 0; // second closest (cand)
@@ -510,10 +517,36 @@ namespace yakmo
       }
       return point_t (&tmp[0], static_cast <uint> (tmp.size ()), norm); // expect RVO
     }
+    static point_t read_point_fl(fl_t* const ex, const fl_t* const ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
+      tmp.clear();
+      fl_t norm = 0;
+      fl_t* p = ex;
+      int64_t fi = 0;
+      while (p != ex_end) {
+        const fl_t v = *p++;
+        tmp.push_back(node_t(static_cast <uint> (fi), v));
+        norm += v * v;
+        ++fi;
+      }
+      std::sort(tmp.begin(), tmp.end());
+      if (normalize) { // normalize
+        norm = std::sqrt(norm);
+        for (std::vector <node_t>::iterator it = tmp.begin();
+          it != tmp.end(); ++it)
+          it->val /= norm;
+        norm = 1.0;
+      }
+      return point_t(&tmp[0], static_cast <uint> (tmp.size()), norm); // expect RVO
+    }
     void set_point (char* ex, char* ex_end, const bool normalize) {
       _point.push_back (read_point (ex, ex_end, _body, normalize));
       if (! _point.back ().empty ())
         _nf = std::max (_point.back ().back(). idx, _nf);
+    }
+    void set_point_fl(fl_t* ex, fl_t* ex_end, const bool normalize) {
+      _point.push_back(read_point_fl(ex, ex_end, _body, normalize));
+      if (!_point.back().empty())
+        _nf = std::max(_point.back().back().idx, _nf);
     }
     void delegate (kmeans* km) {
       std::swap (_point, km->point ());
@@ -720,36 +753,62 @@ namespace yakmo
         std::fprintf (stdout, "\n");
       }
     }
-    void train_from_file (const char* train, const uint iter, const uint output = 0, const bool test_on_other_data = false, const bool instant = false) {
+    void train_from_file (const char* train, const uint iter, const uint output = 0, const bool test_on_other_data = false, const bool instant = false, const bool binary = false) {
       std::vector <const char*> label;
       std::vector <std::vector <uint> > p2c; // point id to cluster id
       std::vector <std::vector <uint> > c2p (_opt.k); // cluster id to point id
       kmeans* km = new kmeans (_opt);
-      FILE* fp = std::fopen (train, "r");
-      if (! fp)
-        errx (1, "no such file: %s", train);
-      char buf[65536];
-      setvbuf(fp, buf, _IOFBF, sizeof (buf));
-      char*  line = 0;
-      int64_t read = 0;
-      while (getLine (fp, line, read)) {
-        char* ex (line), *ex_end (line + read - 1);
-        while (ex != ex_end && ! isspace (*ex)) ++ex;
-        if (! test_on_other_data) {
-          char* copy = new char[ex - line + 1];
-          std::memcpy (copy, line, static_cast <size_t> (ex - line));
-          copy[ex - line] = '\0';
-          label.push_back (copy);
-          if (output == 2) p2c.push_back (std::vector <uint> ());
+
+      if (binary) {
+        FILE* fp = std::fopen(train, "rb");
+        if (!fp)
+          errx(1, "no such file: %s", train);
+        char buf[4096];
+        setvbuf(fp, buf, _IOFBF, sizeof(buf));
+        int32_t row_count = 0;
+        int32_t col_count = 0;
+        if (!std::fread(&row_count, sizeof(row_count), 1, fp)) errx(1, "premature train row_count: %s", train);
+        if (!std::fread(&col_count, sizeof(col_count), 1, fp)) errx(1, "premature train col_count: %s", train);
+        fl_t* line = (fl_t *) malloc(col_count * sizeof(fl_t));
+        for (int32_t rc = 0; rc < row_count; ++rc) {
+          if (std::fread(line, sizeof(fl_t), col_count, fp) != col_count) errx(1, "premature train (%d): %s", row_count, train);
+          if (!test_on_other_data) {
+            char* copy = new char[10];
+            itoa(rc, copy, 10);
+            label.push_back(copy);
+            if (output == 2) p2c.push_back(std::vector <uint>());
+          }
+          km->set_point_fl(line, line + col_count, _opt.normalize);
         }
-        while (isspace (*ex)) ++ex;
-        km->set_point (ex, ex_end, _opt.normalize);
+        free(line);
+        std::fclose(fp);
+      } else {
+        FILE* fp = std::fopen(train, "r");
+        if (!fp)
+          errx(1, "no such file: %s", train);
+        char buf[4096];
+        setvbuf(fp, buf, _IOFBF, sizeof(buf));
+        char* line = 0;
+        int64_t read = 0;
+        while (getLine(fp, line, read)) {
+          char* ex(line), * ex_end(line + read - 1);
+          while (ex != ex_end && !isspace(*ex)) ++ex;
+          if (!test_on_other_data) {
+            char* copy = new char[ex - line + 1];
+            std::memcpy(copy, line, static_cast <size_t> (ex - line));
+            copy[ex - line] = '\0';
+            label.push_back(copy);
+            if (output == 2) p2c.push_back(std::vector <uint>());
+          }
+          while (isspace(*ex)) ++ex;
+          km->set_point(ex, ex_end, _opt.normalize);
+        }
+        std::fclose(fp);
       }
       if (km->point ().size () <= _opt.k)
         errx (1, "# points (=%ld) <= k (=%d); done.",
               km->point ().size (), _opt.k);
       _kms.push_back (km);
-      std::fclose (fp);
       for (uint i = 1; i <= iter; ++i) {
         std::fprintf (stderr, "iter=%d k-means (k=%d): ", i, _opt.k);
         if (i >= 2) {
@@ -810,7 +869,7 @@ namespace yakmo
       FILE* fp = std::fopen (model, "r");
       if (! fp)
         errx (1, "no such file: %s", model);
-      char buf[65536];
+      char buf[4096];
       setvbuf(fp, buf, _IOFBF, sizeof(buf));
       char*  line = 0;
       int64_t read = 0;
@@ -846,7 +905,7 @@ namespace yakmo
       FILE* fp = std::fopen (test, "r");
       if (! fp)
         errx (1, "no such file: %s", test);
-      char buf[65536];
+      char buf[4096];
       setvbuf(fp, buf, _IOFBF, sizeof(buf));
       char*  line = 0;
       int64_t read = 0;

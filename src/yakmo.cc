@@ -6,8 +6,6 @@
 #include "timer.h"
 
 int main (int argc, char** argv) {
-  setvbuf(stdin, (char *) malloc(65536), _IOFBF, 65536);
-  setvbuf(stdout, NULL, _IONBF, 0);
   setvbuf(stderr, NULL, _IONBF, 0);
 
   yakmo::option opt (argc, argv);
@@ -22,7 +20,7 @@ int main (int argc, char** argv) {
   bool instant = std::strcmp (opt.model, "-") == 0;
   if (opt.mode == yakmo::option::TRAIN || opt.mode == yakmo::option::BOTH) {
     TIMER (train_t->startTimer ());
-    m->train_from_file (opt.train, opt.m, opt.output, opt.mode != yakmo::option::TRAIN, instant);
+    m->train_from_file (opt.train, opt.m, opt.output, opt.mode != yakmo::option::TRAIN, instant, opt.binary);
     if (! instant) m->save (opt.model);
     TIMER (train_t->stopTimer ());
   }
