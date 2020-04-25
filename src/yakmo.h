@@ -517,7 +517,7 @@ namespace yakmo
       }
       return point_t (&tmp[0], static_cast <uint> (tmp.size ()), norm); // expect RVO
     }
-    static point_t read_point_fl(fl_t* const ex, const fl_t* const ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
+    static point_t read_point_fl(fl_t* ex, fl_t* ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
       tmp.clear();
       fl_t norm = 0;
       fl_t* p = ex;
@@ -774,7 +774,7 @@ namespace yakmo
           if (std::fread(line, sizeof(fl_t), col_count, fp) != col_count) errx(1, "premature train (%d): %s", row_count, train);
           if (!test_on_other_data) {
             char* copy = new char[10];
-            itoa(rc, copy, 10);
+            _itoa(rc, copy, 10);
             label.push_back(copy);
             if (output == 2) p2c.push_back(std::vector <uint>());
           }
