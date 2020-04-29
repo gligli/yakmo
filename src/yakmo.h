@@ -623,6 +623,8 @@ namespace yakmo
           while (chosen.find (c) != chosen.end ())
             c = c < _point.size () - 1 ? c + 1 : 0;
         } while (chosen.find (c) != chosen.end ());
+        // Gli: fix potential oob on _point index (KLUDGE?)
+        if (c >= _point.size()) c = static_cast<uint>(_point.size()) - 1;
         push_centroid (_point[c]);
         obj = 0;
         chosen.insert (c);
