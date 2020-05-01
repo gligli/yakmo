@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26430.13
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29911.84
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yakmo_vs2017", "yakmo_vs2017.vcxproj", "{EABCE96A-4DB1-4B79-9097-1483CDB16337}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yakmo_vs2017_dll", "yakmo_vs2017_dll.vcxproj", "{277A24D7-9627-4247-A125-57414D2881BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,8 +23,19 @@ Global
 		{EABCE96A-4DB1-4B79-9097-1483CDB16337}.Release|x64.Build.0 = Release|x64
 		{EABCE96A-4DB1-4B79-9097-1483CDB16337}.Release|x86.ActiveCfg = Release|Win32
 		{EABCE96A-4DB1-4B79-9097-1483CDB16337}.Release|x86.Build.0 = Release|Win32
+		{277A24D7-9627-4247-A125-57414D2881BD}.Debug|x64.ActiveCfg = Debug_DLL|x64
+		{277A24D7-9627-4247-A125-57414D2881BD}.Debug|x64.Build.0 = Debug_DLL|x64
+		{277A24D7-9627-4247-A125-57414D2881BD}.Debug|x86.ActiveCfg = Debug_DLL|Win32
+		{277A24D7-9627-4247-A125-57414D2881BD}.Debug|x86.Build.0 = Debug_DLL|Win32
+		{277A24D7-9627-4247-A125-57414D2881BD}.Release|x64.ActiveCfg = Release_DLL|x64
+		{277A24D7-9627-4247-A125-57414D2881BD}.Release|x64.Build.0 = Release_DLL|x64
+		{277A24D7-9627-4247-A125-57414D2881BD}.Release|x86.ActiveCfg = Release_DLL|Win32
+		{277A24D7-9627-4247-A125-57414D2881BD}.Release|x86.Build.0 = Release_DLL|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9A64CF43-BB39-4A35-9F94-610862CDA5DE}
 	EndGlobalSection
 EndGlobal

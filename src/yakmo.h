@@ -105,7 +105,7 @@ namespace yakmo
   typedef double fl_t;
 #endif
   
-	__declspec(noinline) static const float euclidean_baseline_float(const int n, const float* x, const float* y){
+  __declspec(noinline) static const float euclidean_baseline_float(const int n, const float* x, const float* y){
     float result = 0.f;
     for(int i = 0; i < n; ++i){
       const float num = x[i] - y[i];
@@ -234,7 +234,8 @@ namespace yakmo
     uint     verbosity;
     mode_t   mode;
     bool     binary;
-    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (0), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary(false)
+    bool     quiet;
+    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (0), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary(false), quiet(false)
     { set (argc, argv); }
     void set (int argc, char** argv) { // getOpt
       if (argc == 0) return;
@@ -517,10 +518,10 @@ namespace yakmo
       }
       return point_t (&tmp[0], static_cast <uint> (tmp.size ()), norm); // expect RVO
     }
-    static point_t read_point_fl(fl_t* ex, fl_t* ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
+    static point_t read_point_fl(const fl_t* ex, const fl_t* ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
       tmp.clear();
       fl_t norm = 0;
-      fl_t* p = ex;
+      const fl_t* p = ex;
       int64_t fi = 0;
       while (p != ex_end) {
         const fl_t v = *p++;
@@ -543,7 +544,7 @@ namespace yakmo
       if (! _point.back ().empty ())
         _nf = std::max (_point.back ().back(). idx, _nf);
     }
-    void set_point_fl(fl_t* ex, fl_t* ex_end, const bool normalize) {
+    void set_point_fl(const fl_t* ex, const fl_t* ex_end, const bool normalize) {
       _point.push_back(read_point_fl(ex, ex_end, _body, normalize));
       if (!_point.back().empty())
         _nf = std::max(_point.back().back().idx, _nf);
@@ -647,7 +648,7 @@ namespace yakmo
           }
         }
       }
-      if (_opt.verbosity > 1) std::fprintf (stderr, "\n");
+      if (_opt.verbosity > 1 && !_opt.quiet) std::fprintf (stderr, "\n");
     }
     void update_bounds () {
       uint id0 (0), id1 (1);
@@ -681,7 +682,7 @@ namespace yakmo
             _centroid[j].reset (_opt.dist);
           update_bounds ();
         }
-        if (i > 0) {
+        if (i > 0 && !_opt.quiet) {
           if (_opt.verbosity > 1)
             std::fprintf (stderr, "  %3d: obj = %e; #moved = %6d\n", i, getObj (), moved);
           else
@@ -708,11 +709,13 @@ namespace yakmo
           }
         }
       }
-      std::fprintf (stderr, "%s", moved ? "break" : "done");
-      if (_opt.verbosity == 1)
-        std::fprintf (stderr, "; obj = %g.\n", getObj ());
-      else
-        std::fprintf (stderr, ".\n");
+      if (!_opt.quiet) {
+        std::fprintf (stderr, "%s", moved ? "break" : "done");
+        if (_opt.verbosity == 1)
+          std::fprintf (stderr, "; obj = %g.\n", getObj ());
+        else
+          std::fprintf (stderr, ".\n");
+      }
     }
   private:
     const option _opt;
@@ -755,6 +758,41 @@ namespace yakmo
         std::fprintf (stdout, "\n");
       }
     }
+
+    void load_train_data(uint32_t rowCount, uint32_t colCount, const fl_t** trainDS) {
+      kmeans* km = new kmeans(_opt);
+
+      int32_t row_count = rowCount;
+      int32_t col_count = colCount;
+      for (int32_t rc = 0; rc < row_count; ++rc) {
+        km->set_point_fl(trainDS[rc], trainDS[rc] + col_count, _opt.normalize);
+      }
+
+      _kms.push_back(km);
+    }
+
+    void train_on_data(int32_t* pointToCluster) {
+      kmeans* km = _kms.back();
+
+      for (uint i = 1; i <= _opt.m; ++i) {
+        if (i >= 2) {
+          kmeans* km_ = _kms.back(); // last of mohikans
+          // project
+          std::vector <kmeans::point_t>& point_ = km_->point();
+          for (std::vector <kmeans::point_t>::iterator it = point_.begin(); it != point_.end(); ++it)
+            it->project(km_->centroid()[it->id]);
+          km_->clear_centroid();
+        }
+        km->run();
+
+        std::vector <kmeans::point_t>& point = km->point();
+        int32_t* op2c = pointToCluster;
+        for (uint j = 0; j < point.size(); ++j) {
+          *op2c++ = point[j].id;
+        }
+      }
+    }
+
     void train_from_file (const char* train, const uint iter, const uint output = 0, const bool test_on_other_data = false, const bool instant = false, const bool binary = false) {
       std::vector <const char*> label;
       std::vector <std::vector <uint> > p2c; // point id to cluster id
