@@ -66,4 +66,14 @@ extern "C"
 
     API_FP_POST();
   }
+
+  __declspec(dllexport) void __stdcall yakmo_get_centroids(void* ay, yakmo::fl_t** centroids)
+  {
+    API_FP_PRE();
+
+    yakmo::orthogonal_kmeans* yakmo = (yakmo::orthogonal_kmeans*) ay;
+    yakmo->get_centroids(centroids);
+
+    API_FP_POST();
+  }
 }

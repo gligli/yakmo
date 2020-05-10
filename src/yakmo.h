@@ -452,6 +452,11 @@ namespace yakmo
           std::fprintf (fp, " %d:%.16g", _body[i].idx, _body[i].val);
         std::fprintf (fp, "\n");
       }
+      void get_values (fl_t * values) const {
+        memset(values, 0, _nf * sizeof(fl_t));
+        for (uint i = 0; i < _size; ++i)
+          values[_body[i].idx] = _body[i].val;
+      }
       fl_t norm  () const { return _norm; }
       void clear () {
         if (_dv)   delete [] _dv;
@@ -790,6 +795,15 @@ namespace yakmo
         for (uint j = 0; j < point.size(); ++j) {
           *op2c++ = point[j].id;
         }
+      }
+    }
+
+    void get_centroids(fl_t** centroids) {
+      kmeans* km_ = _kms.back();
+      km_->compress();
+      std::vector <kmeans::centroid_t>& centroid = km_->centroid();
+      for (uint i = 0; i < centroid.size(); ++i) {
+        centroid[i].get_values(centroids[i]);
       }
     }
 
