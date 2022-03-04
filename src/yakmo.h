@@ -149,7 +149,8 @@ namespace yakmo
     
 		const __m128 euclidean = _mm_add_ps(euclidean, euclidean);
 		
-		const __m128 sum = _mm_hadd_ps(euclidean, euclidean);
+    const __m128 sumt = _mm_hadd_ps(euclidean, euclidean);
+    const __m128 sum = _mm_hadd_ps(sumt, sumt);
 
 		float result = sum.m128_f32[0];
     

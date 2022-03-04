@@ -22,7 +22,7 @@
 extern "C"
 {
   __declspec(dllexport) void* __stdcall yakmo_create(uint32_t  k, uint32_t  restartCount, int32_t maxIter, int32_t initType, int32_t initSeed, int32_t doNormalize, int32_t isVerbose)
-	{
+  {
     API_FP_PRE();
 
     yakmo::option opt(0, NULL);
@@ -39,7 +39,7 @@ extern "C"
   }
 
   __declspec(dllexport) void __stdcall yakmo_destroy(void* ay)
-	{
+  {
     API_FP_PRE();
 
     delete (yakmo::orthogonal_kmeans*)ay;
