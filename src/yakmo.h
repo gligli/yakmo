@@ -147,7 +147,7 @@ namespace yakmo
 			euclidean1 = _mm_add_ps(euclidean1, a1_minus_b1_sq);
 		}
     
-		const __m128 euclidean = _mm_add_ps(euclidean, euclidean);
+		const __m128 euclidean = _mm_add_ps(euclidean0, euclidean1);
 		
     const __m128 sumt = _mm_hadd_ps(euclidean, euclidean);
     const __m128 sum = _mm_hadd_ps(sumt, sumt);
