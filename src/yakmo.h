@@ -228,7 +228,7 @@ namespace yakmo
     init_t   init;  //
     mutable uint  k;
     mutable uint  m;
-    uint     iter;
+    int     iter;
     bool     random;
     bool     normalize;
     uint16_t output;
@@ -236,7 +236,7 @@ namespace yakmo
     mode_t   mode;
     bool     binary;
     bool     quiet;
-    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (0), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary(false), quiet(false)
+    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (-1), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary(false), quiet(false)
     { set (argc, argv); }
     void set (int argc, char** argv) { // getOpt
       if (argc == 0) return;
@@ -251,7 +251,7 @@ namespace yakmo
           case 'c': init      = strton <init_t> (optarg, &err); break;
           case 'k': k         = strton <uint> (optarg, &err); break;
           case 'm': m         = strton <uint> (optarg, &err); break;
-          case 'i': iter      = strton <uint> (optarg, &err); break;
+          case 'i': iter      = strton <int> (optarg, &err); break;
           case 'r': random    = true; break;
           case 'n': normalize = true; break;
           case 'O': output    = strton <uint16_t> (optarg, &err); break;
@@ -681,7 +681,7 @@ namespace yakmo
     void run () {
       init ();
       uint moved = static_cast <uint> (_point.size ());
-      uint iter_lim = _opt.iter <= 0 ? UINT_MAX : _opt.iter;
+      uint iter_lim = _opt.iter < 0 ? UINT_MAX : _opt.iter;
       for (uint i = 0; i <= iter_lim; ++i) { // find neighbour center
         if (moved) {
           for (uint j = 0; j < _opt.k; ++j) // move center
