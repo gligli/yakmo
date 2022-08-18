@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include "yakmo.h"
+#include "oneapi/tbb/tbbmalloc_proxy.h"
 
 #define DLL_API __declspec(dllexport)
 
