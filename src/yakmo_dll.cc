@@ -34,9 +34,11 @@ extern "C"
     opt.random = initSeed != 0;
     opt.normalize = doNormalize != 0;
     opt.quiet = isVerbose == 0;
-    return new yakmo::orthogonal_kmeans(opt);
+    void * res = new yakmo::orthogonal_kmeans(opt);
 
     API_FP_POST();
+
+    return res;
   }
 
   __declspec(dllexport) void __stdcall yakmo_destroy(void* ay)
