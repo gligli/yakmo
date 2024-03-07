@@ -1,21 +1,21 @@
 #include "oneapi/tbb/scalable_allocator.h"
 
-void* calloc(size_t num, size_t size)
+void* __cdecl calloc(size_t num, size_t size)
 {
   return scalable_calloc(num, size);
 }
 
-void free(void* memptr)
+void __cdecl free(void* memptr)
 {
   scalable_free(memptr);
 }
 
-void* malloc(size_t memSize)
+void* __cdecl malloc(size_t memSize)
 {
   return scalable_malloc(memSize);
 }
 
-void* realloc(void* memptr, size_t memSize)
+void* __cdecl realloc(void* memptr, size_t memSize)
 {
   return scalable_realloc(memptr, memSize);
 }
@@ -74,6 +74,16 @@ void operator delete(void* pointer, const std::nothrow_t&) throw()
 }
 
 void operator delete[](void* pointer, const std::nothrow_t&) throw()
+{
+  scalable_free(pointer);
+}
+
+void operator delete(void* pointer, size_t size)
+{
+  scalable_free(pointer);
+}
+
+void operator delete[](void* pointer, size_t size)
 {
   scalable_free(pointer);
 }
