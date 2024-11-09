@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include "yakmo.h"
+#include <omp.h>
 
 #define DLL_API __declspec(dllexport)
 
@@ -45,6 +46,15 @@ extern "C"
     API_FP_PRE();
 
     delete (yakmo::orthogonal_kmeans*)ay;
+
+    API_FP_POST();
+  }
+
+  __declspec(dllexport) void __stdcall yakmo_set_num_threads(int32_t num_threads)
+  {
+    API_FP_PRE();
+
+    omp_set_num_threads(num_threads);
 
     API_FP_POST();
   }

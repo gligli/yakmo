@@ -10,7 +10,6 @@
 #include "getopt.h"
 #endif
 
-#include "pmmintrin.h"
 #include "getline.h"
 #include <stdint.h>
 #include <ctime>
@@ -21,6 +20,7 @@
 #include <limits>
 #include <vector>
 #include <algorithm>
+#include <omp.h>
 
 #ifdef HAVE_CONFIG_H
 #include "../config.h"
@@ -77,9 +77,10 @@ test      test  file        set '-' to output clustering results of train\n\
                               1 - report assignment per cluster\n\
                               2 - report assignment per item\n\
   -v, --verbose             verbosity level (1)\n\
+  -T, --threads             number of threads (1)\n\
   -h, --help                show this help and exit\n"
 
-static const  char*  yakmo_short_options = "t:c:k:m:i:brnO:v:h";
+static const  char*  yakmo_short_options = "t:c:k:m:i:brnO:v:hT:";
 
 static struct option yakmo_long_options[] = {
   {"dist-type",        required_argument, NULL, 't'},
@@ -93,6 +94,7 @@ static struct option yakmo_long_options[] = {
   {"output",           required_argument, NULL, 'O'},
   {"verbose",          no_argument,       NULL, 'v'},
   {"help",             no_argument,       NULL, 'h'},
+  {"threads",          required_argument, NULL, 'T'},
   {NULL, 0, NULL, 0}
 };
 
@@ -105,98 +107,6 @@ namespace yakmo
   typedef double fl_t;
 #endif
   
-  __declspec(noinline) static const float euclidean_baseline_float(const int n, const float* x, const float* y){
-    float result = 0.f;
-    for(int i = 0; i < n; ++i){
-      const float num = x[i] - y[i];
-      result += num * num;
-    }
-    return result;
-  }
-
-	__declspec(noinline) static const double euclidean_baseline_double(const int n, const double* x, const double* y) {
-		double result = 0.f;
-		for (int i = 0; i < n; ++i) {
-			const double num = x[i] - y[i];
-			result += num * num;
-		}
-		return result;
-	}
-
-	static const float euclidean_intrinsic_float(int n, const float* x, const float* y) {
-    __m128 euclidean0 = _mm_setzero_ps();
-		__m128 euclidean1 = _mm_setzero_ps();
-
-		for (; n > 7; n -= 8) {
-			const __m128 a0 = _mm_loadu_ps(x);
-			x += 4;
-			const __m128 a1 = _mm_loadu_ps(x);
-			x += 4;
-			const __m128 b0 = _mm_loadu_ps(y);
-			y += 4;
-			const __m128 b1 = _mm_loadu_ps(y);
-			y += 4;
-
-			const __m128 a0_minus_b0 = _mm_sub_ps(a0, b0);
-			const __m128 a1_minus_b1 = _mm_sub_ps(a1, b1);
-
-			const __m128 a0_minus_b0_sq = _mm_mul_ps(a0_minus_b0, a0_minus_b0);
-			const __m128 a1_minus_b1_sq = _mm_mul_ps(a1_minus_b1, a1_minus_b1);
-
-			euclidean0 = _mm_add_ps(euclidean0, a0_minus_b0_sq);
-			euclidean1 = _mm_add_ps(euclidean1, a1_minus_b1_sq);
-		}
-    
-		const __m128 euclidean = _mm_add_ps(euclidean0, euclidean1);
-		
-    const __m128 sumt = _mm_hadd_ps(euclidean, euclidean);
-    const __m128 sum = _mm_hadd_ps(sumt, sumt);
-
-		float result = sum.m128_f32[0];
-    
-    if (n)
-      result += euclidean_baseline_float(n, x, y);	// remaining 1-7 entries
-    
-    return result;
-  }  
-    
-	static const double euclidean_intrinsic_double(int n, const double* x, const double* y) {
-		__m128d euclidean0 = _mm_setzero_pd();
-		__m128d euclidean1 = _mm_setzero_pd();
-
-		for (; n > 3; n -= 4) {
-			const __m128d a0 = _mm_loadu_pd(x);
-			x += 2;
-			const __m128d a1 = _mm_loadu_pd(x);
-			x += 2;
-
-			const __m128d b0 = _mm_loadu_pd(y);
-			y += 2;
-			const __m128d b1 = _mm_loadu_pd(y);
-			y += 2;
-
-			const __m128d a0_minus_b0 = _mm_sub_pd(a0, b0);
-			const __m128d a1_minus_b1 = _mm_sub_pd(a1, b1);
-
-			const __m128d a0_minus_b0_sq = _mm_mul_pd(a0_minus_b0, a0_minus_b0);
-			const __m128d a1_minus_b1_sq = _mm_mul_pd(a1_minus_b1, a1_minus_b1);
-
-			euclidean0 = _mm_add_pd(euclidean0, a0_minus_b0_sq);
-			euclidean1 = _mm_add_pd(euclidean1, a1_minus_b1_sq);
-		}
-
-		const __m128d euclidean = _mm_add_pd(euclidean0, euclidean1);
-
-		const __m128d sum = _mm_hadd_pd(euclidean, euclidean);
-
-		double result = sum.m128d_f64[0];
-
-		if (n)
-			result += euclidean_baseline_double(n, x, y);	// remaining 1-3 entries
-
-		return result;
-  }
-
   static inline bool getLine (FILE*& fp, char*& line, int64_t& read) {
 #ifdef __APPLE__
     if ((line = fgetln (fp, &read)) == NULL) return false;
@@ -236,7 +146,8 @@ namespace yakmo
     mode_t   mode;
     bool     binary;
     bool     quiet;
-    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (-1), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary(false), quiet(false)
+    uint     threads;
+    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (-1), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary (false), quiet (false), threads(1)
     { set (argc, argv); }
     void set (int argc, char** argv) { // getOpt
       if (argc == 0) return;
@@ -257,6 +168,7 @@ namespace yakmo
           case 'O': output    = strton <uint16_t> (optarg, &err); break;
           case 'v': verbosity = strton <uint> (optarg, &err); break;
           case 'b': binary    = true; break;
+          case 'T': threads   = strton <uint>(optarg, &err); break;
             // misc
           case 'h': printCredit (); printHelp (); std::exit (0);
           default:  printCredit (); std::exit (0);
@@ -276,6 +188,7 @@ namespace yakmo
       model = argv[++optind];
       test  = argv[++optind];
       setMode (); // induce appropriate mode
+      omp_set_num_threads(threads);
     }
     void setMode () {
       if (std::strcmp (train, "-") == 0 && std::strcmp (test, "-") == 0)
@@ -333,13 +246,21 @@ namespace yakmo
         return  ret;
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
+        std::vector<double> dissim_buf;
+        dissim_buf.reserve(cs.size());
+
+        #pragma omp parallel for
+        for (intptr_t i = 0; i < (intptr_t)cs.size(); ++i) {
+          dissim_buf[i] = calc_dist(cs[i], dist);
+        }
+                
         uint i   = id == 0 ? 1 : 0; // second closest (cand)
         uint id0 = id;
-        fl_t d0 (calc_dist (cs[id0], dist)), d1 (calc_dist (cs[i], dist));
+        fl_t d0 (dissim_buf[id0]), d1 (dissim_buf[i]);
         if (d1 < d0) { id = i; std::swap (d0, d1); }
         for (++i; i < cs.size (); ++i) { // for all other centers
           if (i == id0) continue;
-          const fl_t di = calc_dist (cs[i], dist);
+          const fl_t di = dissim_buf[i];
           if      (di < d0) { d1 = d0; d0 = di; id = i; }
           else if (di < d1) { d1 = di; }
         }
@@ -400,18 +321,33 @@ namespace yakmo
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist, const bool skip = true) const {
         // return distance from this centroid to the given centroid
-#ifdef USE_FLOAT
-		return euclidean_intrinsic_float(_nf, _dv, c._dv);
-#else
-		return euclidean_intrinsic_double(_nf, _dv, c._dv);
-#endif
+        fl_t ret = 0;
+        //switch (dist) {
+        //  case EUCLIDEAN:
+            if (skip) {
+              const fl_t cand = next_d * next_d;
+              for (uint d = 0; d <= _nf; ++d)
+                if ((ret += (_dv[d] - c[d]) * (_dv[d] - c[d])) > cand) break;
+            } else
+              for (uint d = 0; d <= _nf; ++d)
+                ret += (_dv[d] - c[d]) * (_dv[d] - c[d]);
+        //}
+        return ret;
       }
       void set_closest (const std::vector <centroid_t>& centroid, const dist_t dist) {
+        std::vector<double> dissim_buf;
+        dissim_buf.reserve(centroid.size());
+
+        #pragma omp parallel for
+        for (intptr_t i = 0; i < (intptr_t) centroid.size(); ++i) {
+          dissim_buf[i] = calc_dist(centroid[i], dist);
+        }
+
         uint i = (this == &centroid[0]) ? 1 : 0;
-        next_d = calc_dist (centroid[i], dist, false);
+        next_d = dissim_buf[i];
         for (++i; i < centroid.size (); ++i) {
           if (this == &centroid[i]) continue;
-          const fl_t di = calc_dist (centroid[i], dist);
+          const fl_t di = dissim_buf[i];
           if (di < next_d) next_d = di;
         }
         next_d = std::sqrt (next_d);
@@ -635,9 +571,18 @@ namespace yakmo
         push_centroid (_point[c]);
         obj = 0;
         chosen.insert (c);
+
+        std::vector<double> dissim_buf;
+        dissim_buf.reserve(_point.size());
+
+        #pragma omp parallel for
+        for (intptr_t j = 0; j < (intptr_t)_point.size(); ++j) {
+          dissim_buf[j] = _point[j].calc_dist(_centroid[i], _opt.dist);
+        }
+
         for (uint j = 0; j < _point.size (); ++j) {
           point_t& p = _point[j];
-          const fl_t di = p.calc_dist (_centroid[i], _opt.dist);
+          const fl_t di = dissim_buf[j];
           if (i == 0 || di < p.up_d)      // closest
             { p.lo_d = p.up_d; p.up_d = di; p.id = i; }
           else if (i == 1 || di < p.lo_d) // second closest
