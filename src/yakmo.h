@@ -220,11 +220,11 @@ namespace yakmo
     class centroid_t;
     class point_t {
     public:
-      point_t (const node_t* n, const uint size, const fl_t norm)
-        : up_d (0), lo_d (0), id (), _size (size), _body (new node_t[_size]), _norm (norm)
+      point_t (const node_t* n, const uint size, const fl_t norm, const uint weight)
+        : up_d (0), lo_d (0), id (), _size (size), _body (new node_t[_size]), _norm (norm), _weight(weight)
       { std::copy (n, n + size, body ()); }
       point_t& operator= (const point_t& p) {
-        up_d = p.up_d; lo_d = p.lo_d; id = p.id; _size = p._size; _body = p._body; _norm = p._norm;
+        up_d = p.up_d; lo_d = p.lo_d; id = p.id; _size = p._size; _body = p._body; _norm = p._norm; _weight = p._weight;
         return *this;
       }
       fl_t calc_ip (const centroid_t& c) const {
@@ -243,11 +243,11 @@ namespace yakmo
             for (const node_t* n = begin (); n != end (); ++n)
               ret -= 2 * n->val * c[n->idx];
         //}
-        return  ret;
+        return  ret * _weight;
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
         std::vector<double> dissim_buf;
-        dissim_buf.reserve(cs.size());
+        dissim_buf.resize(cs.size());
 
         #pragma omp parallel for
         for (intptr_t i = 0; i < (intptr_t)cs.size(); ++i) {
@@ -280,12 +280,13 @@ namespace yakmo
       }
       const node_t* begin () const { return _body; }
       const node_t* end   () const { return _body + _size; }
-      fl_t    norm  () const { return _norm; }
-      uint    size  () const { return _size; }
-      bool    empty () const { return _size == 0; }
-      node_t& back  () const { return _body[_size - 1]; }
-      node_t* body  () const { return _body; }
-      void    clear () const { if (_body) delete [] _body; }
+      fl_t    norm   () const { return _norm; }
+      uint    weight () const { return _weight; }
+      uint    size   () const { return _size; }
+      bool    empty  () const { return _size == 0; }
+      node_t& back   () const { return _body[_size - 1]; }
+      node_t* body   () const { return _body; }
+      void    clear  () const { if (_body) delete [] _body; }
       fl_t    up_d;  // distance to the closest centroid
       fl_t    lo_d;  // distance to the second closest centroid
       uint    id;    // cluster id
@@ -293,6 +294,7 @@ namespace yakmo
       uint    _size;
       node_t* _body;
       fl_t    _norm;
+      uint    _weight;
     };
     class centroid_t {
     public:
@@ -311,13 +313,13 @@ namespace yakmo
       fl_t operator[] (const uint i) const { return _dv[i]; }
       void pop (const point_t& p) {
         for (const node_t* n = p.begin (); n != p.end (); ++n)
-          _sum[n->idx] -= n->val;
-        --_nelm;
+          _sum[n->idx] -= n->val * p.weight();
+        _nelm -= p.weight();
       }
       void push (const point_t& p) {
         for (const node_t* n = p.begin (); n != p.end (); ++n)
-          _sum[n->idx] += n->val;
-        ++_nelm;
+          _sum[n->idx] += n->val * p.weight();
+        _nelm += p.weight();
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist, const bool skip = true) const {
         // return distance from this centroid to the given centroid
@@ -336,7 +338,7 @@ namespace yakmo
       }
       void set_closest (const std::vector <centroid_t>& centroid, const dist_t dist) {
         std::vector<double> dissim_buf;
-        dissim_buf.reserve(centroid.size());
+        dissim_buf.resize(centroid.size());
 
         #pragma omp parallel for
         for (intptr_t i = 0; i < (intptr_t) centroid.size(); ++i) {
@@ -432,7 +434,7 @@ namespace yakmo
     }
     std::vector <point_t>&    point    () { return _point; }
     std::vector <centroid_t>& centroid () { return _centroid; }
-    static point_t read_point (char* const ex, const char* const ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
+    static point_t read_point (char* const ex, const char* const ex_end, std::vector <node_t>& tmp, const uint weight, const bool normalize = false) {
       tmp.clear ();
       fl_t norm = 0;
       char* p = ex;
@@ -458,9 +460,9 @@ namespace yakmo
           it->val /= norm;
         norm = 1.0;
       }
-      return point_t (&tmp[0], static_cast <uint> (tmp.size ()), norm); // expect RVO
+      return point_t (&tmp[0], static_cast <uint> (tmp.size ()), norm, weight); // expect RVO
     }
-    static point_t read_point_fl(const fl_t* ex, const fl_t* ex_end, std::vector <node_t>& tmp, const bool normalize = false) {
+    static point_t read_point_fl(const fl_t* ex, const fl_t* ex_end, std::vector <node_t>& tmp, const uint weight, const bool normalize = false) {
       tmp.clear();
       fl_t norm = 0;
       const fl_t* p = ex;
@@ -479,15 +481,15 @@ namespace yakmo
           it->val /= norm;
         norm = 1.0;
       }
-      return point_t(&tmp[0], static_cast <uint> (tmp.size()), norm); // expect RVO
+      return point_t(&tmp[0], static_cast <uint> (tmp.size()), norm, weight); // expect RVO
     }
-    void set_point (char* ex, char* ex_end, const bool normalize) {
-      _point.push_back (read_point (ex, ex_end, _body, normalize));
+    void set_point (char* ex, char* ex_end, const uint weight, const bool normalize) {
+      _point.push_back (read_point (ex, ex_end, _body, weight, normalize));
       if (! _point.back ().empty ())
         _nf = std::max (_point.back ().back(). idx, _nf);
     }
-    void set_point_fl(const fl_t* ex, const fl_t* ex_end, const bool normalize) {
-      _point.push_back(read_point_fl(ex, ex_end, _body, normalize));
+    void set_point_fl(const fl_t* ex, const fl_t* ex_end, const uint weight, const bool normalize) {
+      _point.push_back(read_point_fl(ex, ex_end, _body, weight, normalize));
       if (!_point.back().empty())
         _nf = std::max(_point.back().back().idx, _nf);
     }
@@ -573,7 +575,7 @@ namespace yakmo
         chosen.insert (c);
 
         std::vector<double> dissim_buf;
-        dissim_buf.reserve(_point.size());
+        dissim_buf.resize(_point.size());
 
         #pragma omp parallel for
         for (intptr_t j = 0; j < (intptr_t)_point.size(); ++j) {
@@ -611,8 +613,8 @@ namespace yakmo
         }
       for (std::vector <point_t>::iterator it = _point.begin ();
            it != _point.end (); ++it) {
-        it->up_d += _centroid[it->id].delta;
-        it->lo_d -= _centroid[it->id == id0 ? id1 : id0].delta;
+        it->up_d += _centroid[it->id].delta * it->weight();
+        it->lo_d -= _centroid[it->id == id0 ? id1 : id0].delta * it->weight();
       }
     }
     uint& nf () { return _nf; }
@@ -710,13 +712,13 @@ namespace yakmo
       }
     }
 
-    void load_train_data(uint32_t rowCount, uint32_t colCount, const fl_t** trainDS) {
+    void load_train_data(uint32_t rowCount, uint32_t colCount, const fl_t** trainDS, const uint* trainWeights) {
       kmeans* km = new kmeans(_opt);
 
       int32_t row_count = rowCount;
       int32_t col_count = colCount;
       for (int32_t rc = 0; rc < row_count; ++rc) {
-        km->set_point_fl(trainDS[rc], trainDS[rc] + col_count, _opt.normalize);
+        km->set_point_fl(trainDS[rc], trainDS[rc] + col_count, (trainWeights != NULL) ? trainWeights[rc] : 1, _opt.normalize);
       }
 
       _kms.push_back(km);
@@ -778,7 +780,7 @@ namespace yakmo
             label.push_back(copy);
             if (output == 2) p2c.push_back(std::vector <uint>());
           }
-          km->set_point_fl(line, line + col_count, _opt.normalize);
+          km->set_point_fl(line, line + col_count, 1, _opt.normalize);
         }
         free(line);
         std::fclose(fp);
@@ -801,7 +803,7 @@ namespace yakmo
             if (output == 2) p2c.push_back(std::vector <uint>());
           }
           while (isspace(*ex)) ++ex;
-          km->set_point(ex, ex_end, _opt.normalize);
+          km->set_point(ex, ex_end, 1, _opt.normalize);
         }
         std::fclose(fp);
       }

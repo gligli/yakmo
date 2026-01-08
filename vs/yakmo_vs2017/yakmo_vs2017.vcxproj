@@ -27,7 +27,6 @@
     <ClInclude Include="..\..\src\yakmo.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\allocator_replacement.cpp" />
     <ClCompile Include="..\..\src\getline.c" />
     <ClCompile Include="..\..\src\getopt.c" />
     <ClCompile Include="..\..\src\timer.cc" />

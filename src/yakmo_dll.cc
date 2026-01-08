@@ -64,7 +64,17 @@ extern "C"
     API_FP_PRE();
 
     yakmo::orthogonal_kmeans* yakmo = (yakmo::orthogonal_kmeans*) ay;
-    yakmo->load_train_data(rowCount, colCount, dataset);
+    yakmo->load_train_data(rowCount, colCount, dataset, NULL);
+
+    API_FP_POST();
+  }
+
+  __declspec(dllexport) void __stdcall yakmo_load_train_data_weighted(void* ay, uint32_t rowCount, uint32_t colCount, const yakmo::fl_t** dataset, const yakmo::uint* weights)
+  {
+    API_FP_PRE();
+
+    yakmo::orthogonal_kmeans* yakmo = (yakmo::orthogonal_kmeans*) ay;
+    yakmo->load_train_data(rowCount, colCount, dataset, weights);
 
     API_FP_POST();
   }
