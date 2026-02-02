@@ -20,7 +20,7 @@ int main (int argc, char** argv) {
   bool instant = std::strcmp (opt.model, "-") == 0;
   if (opt.mode == yakmo::option::TRAIN || opt.mode == yakmo::option::BOTH) {
     TIMER (train_t->startTimer ());
-    m->train_from_file (opt.train, opt.m, opt.output, opt.mode != yakmo::option::TRAIN, instant, opt.binary);
+    m->train_from_file (opt.train, opt.m, opt.output, opt.mode != yakmo::option::TRAIN, instant, opt.binary, opt.weighting);
     if (! instant) m->save (opt.model);
     TIMER (train_t->stopTimer ());
   }

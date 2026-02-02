@@ -71,6 +71,7 @@ test      test  file        set '-' to output clustering results of train\n\
   -i, --iteration=NUM       maximum number of iterations per clustering (0)\n\
   -r, --init-random-seed    initialize random seed in initializing centroids\n\
   -b, --binary              treat input file as binary\n\
+  -w, --weighting           treat label as integer weight for the line\n\
   -n, --normalize           normalize L2-norm of data points\n\
   -O, --output=TYPE         select output type of testing\n\
                             * 0 - no output\n\
@@ -80,7 +81,7 @@ test      test  file        set '-' to output clustering results of train\n\
   -T, --threads             number of threads (1)\n\
   -h, --help                show this help and exit\n"
 
-static const  char*  yakmo_short_options = "t:c:k:m:i:brnO:v:hT:";
+static const  char*  yakmo_short_options = "t:c:k:m:i:bwrnO:v:hT:";
 
 static struct option yakmo_long_options[] = {
   {"dist-type",        required_argument, NULL, 't'},
@@ -89,6 +90,7 @@ static struct option yakmo_long_options[] = {
   {"num-result",       required_argument, NULL, 'm'},
   {"iteration",        required_argument, NULL, 'i'},
   {"binary",           no_argument,       NULL, 'b'},
+  {"weighting",        no_argument,       NULL, 'w'},
   {"normalize",        no_argument,       NULL, 'n'},
   {"init-random-seed", no_argument,       NULL, 'r'},
   {"output",           required_argument, NULL, 'O'},
@@ -145,9 +147,10 @@ namespace yakmo
     uint     verbosity;
     mode_t   mode;
     bool     binary;
+    bool     weighting;
     bool     quiet;
     uint     threads;
-    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (-1), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary (false), quiet (false), threads(1)
+    option (int argc, char** argv) : com (argc ? argv[0] : "--"), train ("-"), model ("-"), test ("-"), dist (EUCLIDEAN), init (KMEANSPP), k (3), m (1), iter (-1), random (false), normalize (false), output (0), verbosity (1), mode (BOTH), binary (false), weighting(false), quiet (false), threads(1)
     { set (argc, argv); }
     void set (int argc, char** argv) { // getOpt
       if (argc == 0) return;
@@ -168,6 +171,7 @@ namespace yakmo
           case 'O': output    = strton <uint16_t> (optarg, &err); break;
           case 'v': verbosity = strton <uint> (optarg, &err); break;
           case 'b': binary    = true; break;
+          case 'w': weighting = true; break;
           case 'T': threads   = strton <uint>(optarg, &err); break;
             // misc
           case 'h': printCredit (); printHelp (); std::exit (0);
@@ -755,7 +759,7 @@ namespace yakmo
       }
     }
 
-    void train_from_file (const char* train, const uint iter, const uint output = 0, const bool test_on_other_data = false, const bool instant = false, const bool binary = false) {
+    void train_from_file (const char* train, const uint iter, const uint output = 0, const bool test_on_other_data = false, const bool instant = false, const bool binary = false, const bool weighted = false) {
       std::vector <const char*> label;
       std::vector <std::vector <uint> > p2c; // point id to cluster id
       std::vector <std::vector <uint> > c2p (_opt.k); // cluster id to point id
@@ -780,7 +784,10 @@ namespace yakmo
             label.push_back(copy);
             if (output == 2) p2c.push_back(std::vector <uint>());
           }
-          km->set_point_fl(line, line + col_count, 1, _opt.normalize);
+          if (weighted && col_count > 1)
+            km->set_point_fl(&line[1], line + col_count, (int)line[0], _opt.normalize);
+          else
+            km->set_point_fl(line, line + col_count, 1, _opt.normalize);
         }
         free(line);
         std::fclose(fp);
@@ -803,7 +810,7 @@ namespace yakmo
             if (output == 2) p2c.push_back(std::vector <uint>());
           }
           while (isspace(*ex)) ++ex;
-          km->set_point(ex, ex_end, 1, _opt.normalize);
+          km->set_point(ex, ex_end, weighted ? atoi(label.back()) : 1, _opt.normalize);
         }
         std::fclose(fp);
       }
