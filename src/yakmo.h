@@ -341,7 +341,7 @@ namespace yakmo
         return ret;
       }
       void set_closest (const std::vector <centroid_t>& centroid, const dist_t dist) {
-        std::vector<double> dissim_buf;
+        std::vector<fl_t> dissim_buf;
         dissim_buf.resize(centroid.size());
 
         #pragma omp parallel for
@@ -578,7 +578,7 @@ namespace yakmo
         obj = 0;
         chosen.insert (c);
 
-        std::vector<double> dissim_buf;
+        std::vector<fl_t> dissim_buf;
         dissim_buf.resize(_point.size());
 
         #pragma omp parallel for
@@ -623,10 +623,18 @@ namespace yakmo
     }
     uint& nf () { return _nf; }
     fl_t getObj () const { // const
+      std::vector<fl_t> dissim_buf;
+      dissim_buf.resize(_point.size());
+
+      #pragma omp parallel for
+      for (intptr_t i = 0; i < (intptr_t)_point.size(); ++i) {
+        dissim_buf[i] = _point[i].calc_dist(_centroid[_point[i].id], _opt.dist);
+      }
+
       fl_t obj = 0;
-      for (std::vector <point_t>::const_iterator it = _point.begin ();
-           it != _point.end (); ++it)
-        obj += it->calc_dist (_centroid[it->id], _opt.dist);
+      for (uint i = 0; i < dissim_buf.size(); ++i) {
+        obj += dissim_buf[i];
+      }
       return obj;
     }
     void run () {
