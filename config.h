@@ -82,9 +82,6 @@
 /* float as floating-point numbers */
 /* #define USE_FLOAT 1 */
 
-/* hash support */
-#define USE_HASH 1
-
 /* mt19937 support */
 /* #undef USE_MT19937 */
 

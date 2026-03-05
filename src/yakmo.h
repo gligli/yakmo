@@ -247,7 +247,7 @@ namespace yakmo
             for (const node_t* n = begin (); n != end (); ++n)
               ret -= 2 * n->val * c[n->idx];
         //}
-        return  ret * _weight;
+        return std::max (0.0, ret * _weight);
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
         std::vector<double> dissim_buf;
@@ -545,12 +545,11 @@ namespace yakmo
 #endif
       } rng (_opt.random);
       //
-#ifdef USE_HASH
-      std::unordered_set <uint> chosen;
-#else
-      std::set <uint> chosen;
-#endif
+      std::vector <bool> chosen;
       std::vector <fl_t> r;
+      std::vector<fl_t> dissim_buf;
+      dissim_buf.resize(_point.size());
+      chosen.resize(_point.size(), false);
       fl_t obj = 0;
       if (_opt.init == KMEANSPP) r.resize (_point.size (), 0);
       for (uint i = 0; i < _opt.k; ++i) {
@@ -569,17 +568,14 @@ namespace yakmo
               break;
           }
           // skip chosen centroids; fix a bug reported by Gleb
-          while (chosen.find (c) != chosen.end ())
+          while (chosen.at (c))
             c = c < _point.size () - 1 ? c + 1 : 0;
-        } while (chosen.find (c) != chosen.end ());
+        } while (chosen.at(c));
         // Gli: fix potential oob on _point index (KLUDGE?)
         if (c >= _point.size()) c = static_cast<uint>(_point.size()) - 1;
         push_centroid (_point[c]);
         obj = 0;
-        chosen.insert (c);
-
-        std::vector<fl_t> dissim_buf;
-        dissim_buf.resize(_point.size());
+        chosen.at (c) = true;
 
         #pragma omp parallel for
         for (intptr_t j = 0; j < (intptr_t)_point.size(); ++j) {
