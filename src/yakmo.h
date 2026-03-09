@@ -36,20 +36,6 @@ namespace std { using namespace tr1; }
 #define USE_MT19937
 #endif
 
-#ifdef USE_HASH
-#include <unordered_set>
-#endif
-
-#ifdef USE_TR1_HASH
-#include <tr1/unordered_set>
-namespace std { using namespace tr1; }
-#define USE_HASH
-#endif
-
-#ifndef USE_HASH
-#include <set>
-#endif
-
 #define YAKMO_COPYRIGHT  "yakmo - yet another k-means via orthogonalization\n\
 Copyright (c) 2012-2013 Naoki Yoshinaga, All rights reserved.\n\
 \n\
