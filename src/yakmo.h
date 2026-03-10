@@ -198,30 +198,23 @@ namespace yakmo
   //   G. Hamerly. Making k-means even faster (SDM 2010)
   class kmeans {
   public:
-#pragma pack(1)
-    struct node_t {
-      uint idx;
-      fl_t val;
-      node_t () : idx (0), val (0) {}
-      node_t (uint idx_, fl_t val_) : idx (idx_), val (val_) {}
-      bool operator< (const node_t &n) const { return idx < n.idx; }
-    };
 #pragma pack()
     class centroid_t;
     class point_t {
     public:
-      point_t (const node_t* n, const uint size, const fl_t norm, const uint weight)
-        : up_d (0), lo_d (0), id (), _size (size), _body (new node_t[_size]), _norm (norm), _weight(weight)
-      { std::copy (n, n + size, body ()); }
+      point_t (const fl_t* f, const uint size, const fl_t norm, const uint weight)
+        : up_d (0), lo_d (0), id (), _size (size), _dv (new fl_t[_size]), _norm (norm), _weight(weight)
+      { std::copy (f, f + size, dv ()); }
       point_t& operator= (const point_t& p) {
-        up_d = p.up_d; lo_d = p.lo_d; id = p.id; _size = p._size; _body = p._body; _norm = p._norm; _weight = p._weight;
+        up_d = p.up_d; lo_d = p.lo_d; id = p.id; _size = p._size; _dv = p._dv; _norm = p._norm; _weight = p._weight;
         return *this;
       }
       fl_t calc_ip (const centroid_t& c) const {
         // return inner product between this point and the given centroid
         fl_t ret = 0;
-        for (const node_t* n = begin (); n != end (); ++n)
-          ret += n->val * c[n->idx];
+        const fl_t* r = c.dv();
+        for (const fl_t* f = begin (); f != end (); ++f, ++r)
+          ret += *f * *r;
         return ret;
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist) const {
@@ -229,11 +222,11 @@ namespace yakmo
         fl_t ret = 0;
         //switch (dist) {
         //  case EUCLIDEAN:
-            ret += _norm + c.norm ();
-            for (const node_t* n = begin (); n != end (); ++n)
-              ret -= 2 * n->val * c[n->idx];
+            const fl_t* r = c.dv();
+            for (const fl_t* f = begin (); f != end (); ++f, ++r)
+              ret += (*f - *r) * (*f - *r);
         //}
-        return std::max (0.0, ret * _weight);
+        return ret * _weight;
       }
       void set_closest (const std::vector <centroid_t> &cs, const dist_t dist) {
         std::vector<double> dissim_buf;
@@ -257,58 +250,57 @@ namespace yakmo
         up_d = std::sqrt (d0);
         lo_d = std::sqrt (d1);
       }
-      void shrink (const uint nf)
-      { while (! empty () && back ().idx > nf) --_size; }
       void project (const centroid_t& c) {
         const fl_t norm_ip = calc_ip (c) / c.norm ();
         up_d = lo_d = id = 0; _norm = 0; // reset
         for (uint i = 0; i < _size; ++i) {
-          fl_t v = c[_body[i].idx] * norm_ip;
+          fl_t v = c.dv ()[i] * norm_ip;
           _norm += v * v;
-          _body[i].val = v;
+          _dv[i] = v;
         }
       }
-      const node_t* begin () const { return _body; }
-      const node_t* end   () const { return _body + _size; }
+      const fl_t* begin () const { return _dv; }
+      const fl_t* end   () const { return _dv + _size; }
       fl_t    norm   () const { return _norm; }
       uint    weight () const { return _weight; }
       uint    size   () const { return _size; }
       bool    empty  () const { return _size == 0; }
-      node_t& back   () const { return _body[_size - 1]; }
-      node_t* body   () const { return _body; }
-      void    clear  () const { if (_body) delete [] _body; }
+      fl_t&   back   () const { return _dv[_size - 1]; }
+      fl_t*   dv   () const { return _dv; }
+      void    clear  () const { if (_dv) delete [] _dv; }
       fl_t    up_d;  // distance to the closest centroid
       fl_t    lo_d;  // distance to the second closest centroid
       uint    id;    // cluster id
     private:
       uint    _size;
-      node_t* _body;
+      fl_t*   _dv;
       fl_t    _norm;
       uint    _weight;
     };
     class centroid_t {
     public:
       centroid_t (point_t& p, const uint nf, const bool delegate = false) :
-        delta (0), next_d (0), _norm (p.norm ()), _dv (0), _sum (0), _body (0), _nelm (0), _nf (nf), _size (0) {
+        delta (0), next_d (0), _norm (p.norm ()), _dv (0), _sum (0), _nelm (0), _nf (nf) {
         if (delegate) {
-          _size = p.size ();
-          _body = p.body (); // delegate
+          _dv = p.dv(); // delegate
         } else { // workaround for a bug in value initialization in gcc 4.0
           _dv  = new fl_t[_nf + 1]; std::fill_n (_dv,  _nf + 1, 0);
           _sum = new fl_t[_nf + 1]; std::fill_n (_sum, _nf + 1, 0);
-          for (const node_t* n = p.begin (); n != p.end (); ++n)
-            _dv[n->idx] = n->val;
+          fl_t* c = _dv;
+          for (const fl_t* f = p.begin (); f != p.end (); ++f, ++c)
+            *c = *f;
         }
       }
-      fl_t operator[] (const uint i) const { return _dv[i]; }
       void pop (const point_t& p) {
-        for (const node_t* n = p.begin (); n != p.end (); ++n)
-          _sum[n->idx] -= n->val * p.weight();
+        fl_t* s = _sum;
+        for (const fl_t* f = p.begin (); f != p.end (); ++f, ++s)
+          *s -= *f * p.weight();
         _nelm -= p.weight();
       }
       void push (const point_t& p) {
-        for (const node_t* n = p.begin (); n != p.end (); ++n)
-          _sum[n->idx] += n->val * p.weight();
+        fl_t* s = _sum;
+        for (const fl_t* f = p.begin(); f != p.end(); ++f, ++s)
+          *s += *f * p.weight();
         _nelm += p.weight();
       }
       fl_t calc_dist (const centroid_t& c, const dist_t dist, const bool skip = true) const {
@@ -316,13 +308,15 @@ namespace yakmo
         fl_t ret = 0;
         //switch (dist) {
         //  case EUCLIDEAN:
+            const fl_t* f = _dv;
+            const fl_t* r = c.dv ();
             if (skip) {
               const fl_t cand = next_d * next_d;
-              for (uint d = 0; d <= _nf; ++d)
-                if ((ret += (_dv[d] - c[d]) * (_dv[d] - c[d])) > cand) break;
+              for (uint d = 0; d <= _nf; ++d, ++f, ++r)
+                if ((ret += (*f - *r) * (*f - *r)) > cand) break;
             } else
-              for (uint d = 0; d <= _nf; ++d)
-                ret += (_dv[d] - c[d]) * (_dv[d] - c[d]);
+              for (uint d = 0; d <= _nf; ++d, ++f, ++r)
+                ret += (*f - *r) * (*f - *r);
         //}
         return ret;
       }
@@ -357,40 +351,22 @@ namespace yakmo
         //}
         delta = std::sqrt (delta);
       }
-      void compress () {
-        _size = 0;
-        for (uint i = 0; i <= _nf; ++i)
-          if (std::fpclassify (_dv[i]) != FP_ZERO)
-            ++_size;
-        _body = new node_t[_size];
-        for (uint i (0), j (0); i <= _nf; ++i)
-          if (std::fpclassify (_dv[i]) != FP_ZERO)
-            _body[j].idx = i, _body[j].val = _dv[i], ++j;
-        delete [] _dv;  _dv  = 0;
-        delete [] _sum; _sum = 0;
-      }
-      void decompress () {
-        _dv = new fl_t[_nf + 1]; std::fill_n (_dv, _nf + 1, 0);
-        for (uint i = 0; i < _size; ++i)
-          _dv[_body[i].idx] = _body[i].val;
-        delete [] _body; _body = 0;
-      }
       void print (FILE* fp, const uint j) const {
         std::fprintf (fp, "%d", j);
-        for (uint i = 0; i < _size; ++i)
-          std::fprintf (fp, " %d:%.16g", _body[i].idx, _body[i].val);
+        for (uint i = 0; i <= _nf; ++i)
+          std::fprintf (fp, " %d:%.16g", i, _dv[i]);
         std::fprintf (fp, "\n");
       }
       void get_values (fl_t * values) const {
         memset(values, 0, _nf * sizeof(fl_t));
-        for (uint i = 0; i < _size; ++i)
-          values[_body[i].idx] = _body[i].val;
+        for (uint i = 0; i <= _nf; ++i)
+          values[i] = _dv[i];
       }
-      fl_t norm  () const { return _norm; }
+      fl_t norm () const { return _norm; }
+      const fl_t* dv () const { return _dv; }
       void clear () {
         if (_dv)   delete [] _dv;
         if (_sum)  delete [] _sum;
-        if (_body) delete [] _body;
       }
       //
       fl_t     delta;  // moved distance
@@ -399,13 +375,11 @@ namespace yakmo
       fl_t     _norm;  // norm
       fl_t*    _dv;
       fl_t*    _sum;
-      node_t*  _body;
       uint     _nelm;  // # elements belonging to the cluster
       uint     _nf;    // # features
-      uint     _size;  // # nozero features
       friend point_t;
     };
-    kmeans (const option &opt) : _opt (opt), _point (), _centroid (), _body (), _nf (0) { _centroid.reserve (_opt.k); }
+    kmeans (const option &opt) : _opt (opt), _point (), _centroid (), _dv (), _nf (0) { _centroid.reserve (_opt.k); }
     ~kmeans () {
       clear_point ();
       clear_centroid ();
@@ -424,7 +398,7 @@ namespace yakmo
     }
     std::vector <point_t>&    point    () { return _point; }
     std::vector <centroid_t>& centroid () { return _centroid; }
-    static point_t read_point (char* const ex, const char* const ex_end, std::vector <node_t>& tmp, const uint weight, const bool normalize = false) {
+    static point_t read_point (char* const ex, const char* const ex_end, std::vector <fl_t>& tmp, const uint weight, const bool normalize = false) {
       tmp.clear ();
       fl_t norm = 0;
       char* p = ex;
@@ -438,64 +412,52 @@ namespace yakmo
         if (*p != ':') errx (1, "illegal feature index: %s", ex);
         ++p;
         const fl_t v = static_cast <fl_t> (std::strtod (p, &p));
-        tmp.push_back (node_t (static_cast <uint> (fi), v));
+        tmp.push_back (v);
         norm += v * v;
         while (isspace (*p)) ++p;
       }
-      std::sort (tmp.begin (), tmp.end ());
       if (normalize) { // normalize
         norm = std::sqrt (norm);
-        for (std::vector <node_t>::iterator it = tmp.begin ();
+        for (std::vector <fl_t>::iterator it = tmp.begin ();
              it != tmp.end (); ++it)
-          it->val /= norm;
+          *it /= norm;
         norm = 1.0;
       }
       return point_t (&tmp[0], static_cast <uint> (tmp.size ()), norm, weight); // expect RVO
     }
-    static point_t read_point_fl(const fl_t* ex, const fl_t* ex_end, std::vector <node_t>& tmp, const uint weight, const bool normalize = false) {
+    static point_t read_point_fl(const fl_t* ex, const fl_t* ex_end, std::vector <fl_t>& tmp, const uint weight, const bool normalize = false) {
       tmp.clear();
       fl_t norm = 0;
       const fl_t* p = ex;
       int64_t fi = 0;
       while (p != ex_end) {
         const fl_t v = *p++;
-        tmp.push_back(node_t(static_cast <uint> (fi), v));
+        tmp.push_back(v);
         norm += v * v;
         ++fi;
       }
-      std::sort(tmp.begin(), tmp.end());
       if (normalize) { // normalize
         norm = std::sqrt(norm);
-        for (std::vector <node_t>::iterator it = tmp.begin();
+        for (std::vector <fl_t>::iterator it = tmp.begin();
           it != tmp.end(); ++it)
-          it->val /= norm;
+          *it /= norm;
         norm = 1.0;
       }
       return point_t(&tmp[0], static_cast <uint> (tmp.size()), norm, weight); // expect RVO
     }
     void set_point (char* ex, char* ex_end, const uint weight, const bool normalize) {
-      _point.push_back (read_point (ex, ex_end, _body, weight, normalize));
+      _point.push_back (read_point (ex, ex_end, _dv, weight, normalize));
       if (! _point.back ().empty ())
-        _nf = std::max (_point.back ().back(). idx, _nf);
+        _nf = std::max (_point.back ().size() - 1, _nf);
     }
     void set_point_fl(const fl_t* ex, const fl_t* ex_end, const uint weight, const bool normalize) {
-      _point.push_back(read_point_fl(ex, ex_end, _body, weight, normalize));
-      if (!_point.back().empty())
-        _nf = std::max(_point.back().back().idx, _nf);
+      _point.push_back (read_point_fl (ex, ex_end, _dv, weight, normalize));
+      if (!_point.back ().empty ())
+        _nf = std::max (_point.back ().size() - 1, _nf);
     }
     void delegate (kmeans* km) {
       std::swap (_point, km->point ());
       km->nf () = _nf;
-    }
-    void compress () {
-      for (std::vector <centroid_t>::iterator it = _centroid.begin ();
-           it != _centroid.end (); ++it)
-        it->compress ();
-    }
-    void decompress () {
-      for (std::vector <centroid_t>::iterator it = _centroid.begin ();
-           it != _centroid.end (); ++it)
-        it->decompress ();
     }
     void push_centroid (point_t& p, const bool delegate = false)
     { _centroid.push_back (centroid_t (p, _nf, delegate)); }
@@ -668,7 +630,7 @@ namespace yakmo
     const option _opt;
     std::vector <point_t>     _point;
     std::vector <centroid_t>  _centroid;
-    std::vector <node_t>      _body;
+    std::vector <fl_t>        _dv;
     uint  _nf;
   };
   // implementation of orthogonal k-means:
@@ -742,7 +704,6 @@ namespace yakmo
 
     void get_centroids(fl_t** centroids) {
       kmeans* km_ = _kms.back();
-      km_->compress();
       std::vector <kmeans::centroid_t>& centroid = km_->centroid();
       for (uint i = 0; i < centroid.size(); ++i) {
         centroid[i].get_values(centroids[i]);
@@ -820,7 +781,6 @@ namespace yakmo
           if (test_on_other_data || ! instant) {
             km = new kmeans (_opt);
             km_->delegate (km);
-            km_->compress ();
             _kms.push_back (km);
           } else {
             km_->clear_centroid ();
@@ -841,7 +801,6 @@ namespace yakmo
       if (! test_on_other_data)
         if (output == 2) print (label, p2c);
       if (test_on_other_data || ! instant) {
-        _kms.back ()->compress ();
         _kms.back ()->clear_point ();
       }
       for (std::vector <const char*>::iterator it = label.begin (); it != label.end (); ++it)
@@ -878,7 +837,7 @@ namespace yakmo
       _opt.k  = static_cast <uint> (std::strtol (line, NULL, 10));
       if (! getLine (fp, line, read)) errx (1, "premature model (2): %s", model);
       const uint nf = static_cast <uint> (std::strtol (line, NULL, 10));
-      std::vector <kmeans::node_t> body;
+      std::vector <fl_t> body;
       for (uint i = 0; i < _opt.m; ++i) {
         kmeans* km = new kmeans (_opt);
         km->nf () = nf;
@@ -900,7 +859,7 @@ namespace yakmo
       std::vector <const char*>         label;
       std::vector <std::vector <uint> > p2c; // point id to cluster id
       std::vector <std::vector <uint> > c2p (_opt.k); // cluster id to point id
-      std::vector <kmeans::node_t> body;
+      std::vector <fl_t> body;
       FILE* fp = std::fopen (test, "r");
       if (! fp)
         errx (1, "no such file: %s", test);
@@ -924,10 +883,8 @@ namespace yakmo
         if (output == 1)
           for (uint j = 0; j < _opt.k; ++j) c2p[j].clear ();
         kmeans* km =_kms[i];
-        km->decompress ();
         for (uint j = 0; j < point.size (); ++j) {
           kmeans::point_t& p = point[j];
-          p.shrink (km->nf ());
           p.set_closest (km->centroid (), _opt.dist);
           if (output == 1) c2p[p.id].push_back (j);
           if (output == 2) p2c[j].push_back (p.id);
